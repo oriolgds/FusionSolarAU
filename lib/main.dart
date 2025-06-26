@@ -9,13 +9,18 @@ import 'providers/solar_data_provider.dart';
 import 'providers/device_provider.dart';
 import 'providers/automation_provider.dart';
 import 'themes/app_theme.dart';
+import 'package:firebase_core/firebase_core.dart';
+
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   // Inicializar Hive para almacenamiento local
   await Hive.initFlutter();
-  
+
   runApp(const FusionSolarAUApp());
 }
 
@@ -50,5 +55,3 @@ class FusionSolarAUApp extends StatelessWidget {
     );
   }
 }
-
-
