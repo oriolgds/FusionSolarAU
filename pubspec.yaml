@@ -119,3 +119,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+  # Especifica la versión mínima de plataforma para iOS
+  platforms:
+    ios:
+      minimum_version: 12.0
