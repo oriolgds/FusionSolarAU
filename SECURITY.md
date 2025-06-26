@@ -15,7 +15,7 @@ If you discover a security vulnerability in this project, please report it to ou
 
 ### How to Report
 
-Please report security issues by emailing [security@fusion-solar-au.com](mailto:security@fusion-solar-au.com). You should receive a response within 48 hours. If for some reason you do not receive a response, please follow up via email to ensure we received your original message.
+Please report security issues by emailing [oriolginger2008@gmail.com](mailto:security@fusion-solar-au.com). You should receive a response within 48 hours. If for some reason you do not receive a response, please follow up via email to ensure we received your original message.
 
 ### Security Best Practices
 
