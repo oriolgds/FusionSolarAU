@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [ main ]
 
-env:
-  FLUTTER_VERSION: '3.8.1'
-
 jobs:
   build-android:
     runs-on: ubuntu-latest
@@ -19,7 +16,8 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+            channel: stable
+            flutter-version-file: pubspec.yaml 
 
       - name: Cache pub packages
         uses: actions/cache@v4
@@ -61,7 +59,8 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+            channel: stable
+            flutter-version-file: pubspec.yaml 
 
       - name: Cache pub packages
         uses: actions/cache@v4
@@ -94,7 +93,8 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+            channel: stable
+            flutter-version-file: pubspec.yaml 
 
       - name: Cache pub packages
         uses: actions/cache@v4
