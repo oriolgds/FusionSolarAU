@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/automation_rule.dart';
-import '../models/solar_data.dart';
-import '../models/smart_device.dart';
+
+
 import '../services/automation_service.dart';
 
 class AutomationProvider extends ChangeNotifier {

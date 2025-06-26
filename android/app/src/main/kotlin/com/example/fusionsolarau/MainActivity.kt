@@ -1,4 +1,4 @@
-package com.example.fusionsolarau
+package com.oriolgds.fusionsolarau
 
 import io.flutter.embedding.android.FlutterActivity
 

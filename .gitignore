@@ -43,6 +43,25 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+# Configuration files
 lib/firebase_options.dart
 firebase.json
 android/app/google-services.json
+google-services.json
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Local development files
+*.local.*
+
+# Secrets
+**/secrets.*
+
+# VS Code settings (optional but recommended)
+.vscode/
+!vscode/settings.json
+!vscode/launch.json
+!vscode/extensions.json

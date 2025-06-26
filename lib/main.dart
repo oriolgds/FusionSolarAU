@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/home/home_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -9,17 +10,23 @@ import 'providers/solar_data_provider.dart';
 import 'providers/device_provider.dart';
 import 'providers/automation_provider.dart';
 import 'themes/app_theme.dart';
-import 'package:firebase_core/firebase_core.dart';
 
-import 'firebase_options.dart';
+// Load environment variables
+final supabaseUrl = dotenv.get('SUPABASE_URL');
+final supabaseAnonKey = dotenv.get('SUPABASE_ANON_KEY');
 
 void main() async {
+  // Ensure Flutter binding is initialized
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Load environment variables
+  await dotenv.load(fileName: ".env");
 
-  // Inicializar Hive para almacenamiento local
-  await Hive.initFlutter();
+  // Initialize Supabase
+  await Supabase.initialize(
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
+  );
 
   runApp(const FusionSolarAUApp());
 }

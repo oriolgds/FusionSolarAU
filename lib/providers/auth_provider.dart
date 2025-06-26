@@ -1,86 +1,82 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/user.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/user.dart' as app_models;
 import '../services/auth_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: [
-      'email',
-      'https://www.googleapis.com/auth/userinfo.profile',
-    ],
-  );
-
-  User? _user;
+  final SupabaseClient _supabase = Supabase.instance.client;
+  
+  app_models.User? _user;
   bool _isLoading = false;
   String? _error;
+  StreamSubscription<AuthState>? _authSubscription;
 
-  User? get user => _user;
+  app_models.User? get user => _user;
   bool get isAuthenticated => _user != null;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
   AuthProvider() {
+    _initAuth();
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _initAuth() {
+    // Escuchar cambios en el estado de autenticación
+    _authSubscription = _supabase.auth.onAuthStateChange.listen((authState) async {
+      final user = authState.session?.user;
+      
+      if (user != null) {
+        // Usuario autenticado con Supabase
+        _user = app_models.User(
+          id: user.id,
+          email: user.email ?? '',
+          displayName: user.userMetadata?['full_name']?.toString() ?? 
+                      user.userMetadata?['name']?.toString() ?? 
+                      'Usuario',
+          photoUrl: user.userMetadata?['avatar_url']?.toString(),
+          lastLogin: DateTime.now(),
+          preferences: {},
+        );
+        await _saveUserToStorage();
+      } else {
+        // Usuario no autenticado
+        _user = null;
+        await _clearUserFromStorage();
+      }
+      notifyListeners();
+    });
+    
+    // Cargar usuario desde el almacenamiento local si existe
     _loadUserFromStorage();
   }
 
-  Future<void> _loadUserFromStorage() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userJson = prefs.getString('user');
-      if (userJson != null) {
-        // En una implementación real, aquí deberías verificar si el token sigue siendo válido
-        // y si el usuario aún está autenticado con Google
-        _user = User.fromJson({
-          'id': prefs.getString('user_id') ?? '',
-          'email': prefs.getString('user_email') ?? '',
-          'displayName': prefs.getString('user_name') ?? '',
-          'photoUrl': prefs.getString('user_photo'),
-          'lastLogin': DateTime.now().millisecondsSinceEpoch,
-          'preferences': {},
-        });
-        notifyListeners();
-      }
-    } catch (e) {
-      debugPrint('Error loading user from storage: $e');
-    }
-  }
+  // Nota: Ya no necesitamos cargar el usuario desde el almacenamiento local
+  // ya que Firebase maneja la persistencia de la sesión automáticamente
 
   Future<bool> signInWithGoogle() async {
     try {
       _setLoading(true);
       _setError(null);
 
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        _setLoading(false);
-        return false;
-      }
-
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      // Iniciar sesión con Google a través de Supabase
+      // La respuesta de Supabase se manejará a través del listener _authSubscription
+      await _authService.signInWithGoogle();
       
-      // En una implementación real, aquí enviarías el token a tu backend
-      // para verificarlo y obtener/crear el usuario en tu sistema
-      // Ejemplo: await _authService.validateToken(googleAuth.accessToken);
-      
-      
-      _user = User(
-        id: googleUser.id,
-        email: googleUser.email,
-        displayName: googleUser.displayName ?? 'Usuario',
-        photoUrl: googleUser.photoUrl,
-        lastLogin: DateTime.now(),
-        preferences: {},
-      );
-
-      await _saveUserToStorage();
+      // Si llegamos aquí, la autenticación se inició correctamente
+      // El estado real de la autenticación se actualizará a través del listener
       _setLoading(false);
-      notifyListeners();
       return true;
     } catch (e) {
-      _setError('Error al iniciar sesión: $e');
+      _setError('Error al iniciar sesión con Google: $e');
       _setLoading(false);
       return false;
     }
@@ -88,12 +84,13 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> signOut() async {
     try {
-      await _googleSignIn.signOut();
-      await _clearUserFromStorage();
+      await _authService.signOut();
       _user = null;
+      await _clearUserFromStorage();
       notifyListeners();
     } catch (e) {
-      debugPrint('Error signing out: $e');
+      debugPrint('Error al cerrar sesión: $e');
+      _setError('Error al cerrar sesión: $e');
     }
   }
 
@@ -110,21 +107,58 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _clearUserFromStorage() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('user_id');
-    await prefs.remove('user_email');
-    await prefs.remove('user_name');
-    await prefs.remove('user_photo');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('user');
+      await prefs.remove('user_id');
+      await prefs.remove('user_email');
+      await prefs.remove('user_name');
+      await prefs.remove('user_photo');
+    } catch (e) {
+      debugPrint('Error clearing user from storage: $e');
+    }
   }
 
-  void _setLoading(bool loading) {
-    _isLoading = loading;
+  void _setLoading(bool value) {
+    _isLoading = value;
     notifyListeners();
   }
 
   void _setError(String? error) {
     _error = error;
+    if (error != null) {
+      // Opcional: Mostrar el error durante unos segundos y luego limpiarlo
+      Future.delayed(const Duration(seconds: 5), () {
+        _error = null;
+        notifyListeners();
+      });
+    }
     notifyListeners();
+  }
+
+  bool isUserAuthenticated() {
+    return _authService.isAuthenticated();
+  }
+  
+  Future<void> _loadUserFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id');
+      
+      if (userId != null) {
+        _user = app_models.User(
+          id: userId,
+          email: prefs.getString('user_email') ?? '',
+          displayName: prefs.getString('user_name') ?? 'Usuario',
+          photoUrl: prefs.getString('user_photo'),
+          lastLogin: DateTime.now(),
+          preferences: {},
+        );
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading user from storage: $e');
+    }
   }
 
   void clearError() {
