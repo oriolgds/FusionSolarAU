@@ -79,7 +79,7 @@ jobs:
 
       - name: Create firebase_options.dart
         run: |
-          mkdir -p lib
+          if (!(Test-Path -Path lib)) { New-Item -ItemType Directory -Path lib }
           echo "${{ secrets.FIREBASE_OPTIONS_DART }}" > lib/firebase_options.dart
 
       - name: Install dependencies
