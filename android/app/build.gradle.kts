@@ -12,20 +12,10 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val keystoreProperties = Properties().apply {
-    // Try to load from environment variables first (for CI)
-    System.getenv("KEYSTORE_PATH")?.let { path ->
-        setProperty("storeFile", path)
-        setProperty("storePassword", System.getenv("KEYSTORE_PASSWORD") ?: "")
-        setProperty("keyAlias", System.getenv("KEY_ALIAS") ?: "")
-        setProperty("keyPassword", System.getenv("KEY_PASSWORD") ?: "")
-    } ?: run {
-        // Fall back to local key.properties file if it exists (for local development)
-        val keystorePropertiesFile = rootProject.file("key.properties")
-        if (keystorePropertiesFile.exists()) {
-            load(FileInputStream(keystorePropertiesFile))
-        }
-    }
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -55,22 +45,10 @@ android {
 
     signingConfigs {
         create("release") {
-            val storeFilePath = keystoreProperties.getProperty("storeFile")
-            val storePassword = keystoreProperties.getProperty("storePassword")
-            val keyAlias = keystoreProperties.getProperty("keyAlias")
-            val keyPassword = keystoreProperties.getProperty("keyPassword")
-            
-            if (storeFilePath != null && storePassword != null && keyAlias != null && keyPassword != null) {
-                keyAlias(keyAlias)
-                keyPassword(keyPassword)
-                storeFile = file(storeFilePath)
-                storePassword(storePassword)
-                enableV1Signing = true
-                enableV2Signing = true
-            } else {
-                logger.warn("⚠️ Release signing not configured. Building with debug keys.")
-                signingConfig = signingConfigs.getByName("debug")
-            }
+            keyAlias = keystoreProperties["keyAlias"] as String
+            keyPassword = keystoreProperties["keyPassword"] as String
+            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+            storePassword = keystoreProperties["storePassword"] as String
         }
     }
     buildTypes {

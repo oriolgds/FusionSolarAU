@@ -11,12 +11,16 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Perfil')),
+      appBar: AppBar(
+        title: const Text('Perfil'),
+      ),
       body: Consumer<AuthProvider>(
         builder: (context, authProvider, _) {
           final user = authProvider.currentUser;
           if (user == null) {
-            return const Center(child: Text('Usuario no autenticado'));
+            return const Center(
+              child: Text('Usuario no autenticado'),
+            );
           }
 
           return SingleChildScrollView(
@@ -25,24 +29,24 @@ class ProfileScreen extends StatelessWidget {
               children: [
                 // Información del usuario
                 _buildUserInfo(context, user),
-
+                
                 const SizedBox(height: 24),
-
+                
                 // Estadísticas de la aplicación
                 _buildAppStats(context),
-
+                
                 const SizedBox(height: 24),
-
+                
                 // Configuración
                 _buildSettings(context),
-
+                
                 const SizedBox(height: 24),
-
+                
                 // Información de la aplicación
                 _buildAppInfo(context),
-
+                
                 const SizedBox(height: 24),
-
+                
                 // Botón de cerrar sesión
                 _buildSignOutButton(context, authProvider),
               ],
@@ -56,18 +60,18 @@ class ProfileScreen extends StatelessWidget {
   Widget _buildUserInfo(BuildContext context, user) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             CircleAvatar(
               radius: 40,
               backgroundColor: Theme.of(context).colorScheme.primary,
-              backgroundImage: user.photoURL != null
+              backgroundImage: user.photoURL != null 
                   ? NetworkImage(user.photoURL!)
                   : null,
               child: user.photoURL == null
                   ? Text(
-                      user.displayName.isNotEmpty
+                      user.displayName.isNotEmpty 
                           ? user.displayName[0].toUpperCase()
                           : 'U',
                       style: const TextStyle(
@@ -86,10 +90,21 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               user.email,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey[600],
+              ),
             ),
+            const SizedBox(height: 8),
+            if (user.metadata.lastSignInTime != null)
+              Text(
+                'Último acceso: ${_formatDate(user.metadata.lastSignInTime!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            if (user.metadata.creationTime != null)
+              Text(
+                'Cuenta creada: ${_formatDate(user.metadata.creationTime!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
           ],
         ),
       ),
@@ -216,9 +231,7 @@ class ProfileScreen extends StatelessWidget {
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text(
-                    'Configuración disponible en próxima actualización',
-                  ),
+                  content: Text('Configuración disponible en próxima actualización'),
                 ),
               );
             },
@@ -232,9 +245,7 @@ class ProfileScreen extends StatelessWidget {
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text(
-                    'Configuración de notificaciones disponible pronto',
-                  ),
+                  content: Text('Configuración de notificaciones disponible pronto'),
                 ),
               );
             },
@@ -248,9 +259,7 @@ class ProfileScreen extends StatelessWidget {
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text(
-                    'Configuración de privacidad disponible pronto',
-                  ),
+                  content: Text('Configuración de privacidad disponible pronto'),
                 ),
               );
             },
@@ -331,9 +340,7 @@ class ProfileScreen extends StatelessWidget {
             context: context,
             builder: (context) => AlertDialog(
               title: const Text('Cerrar Sesión'),
-              content: const Text(
-                '¿Estás seguro de que quieres cerrar sesión?',
-              ),
+              content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
@@ -341,7 +348,9 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(true),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                  ),
                   child: const Text('Cerrar Sesión'),
                 ),
               ],
@@ -366,7 +375,7 @@ class ProfileScreen extends StatelessWidget {
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
-
+    
     if (difference.inDays == 0) {
       return 'Hoy';
     } else if (difference.inDays == 1) {
