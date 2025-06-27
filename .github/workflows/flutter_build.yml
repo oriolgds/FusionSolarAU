@@ -46,7 +46,7 @@ jobs:
 
 
       - name: Build release APK (unsigned)
-        run: flutter build apk --release --no-shrink
+        run: flutter build apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
