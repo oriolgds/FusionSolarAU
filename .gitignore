@@ -50,9 +50,6 @@ android/app/google-services.json
 google-services.json
 
 # Environment variables
-.env
-.env.*
-!.env.example
 
 # Local development files
 *.local.*

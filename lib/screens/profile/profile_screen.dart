@@ -16,7 +16,7 @@ class ProfileScreen extends StatelessWidget {
       ),
       body: Consumer<AuthProvider>(
         builder: (context, authProvider, _) {
-          final user = authProvider.user;
+          final user = authProvider.currentUser;
           if (user == null) {
             return const Center(
               child: Text('Usuario no autenticado'),
@@ -66,10 +66,10 @@ class ProfileScreen extends StatelessWidget {
             CircleAvatar(
               radius: 40,
               backgroundColor: Theme.of(context).colorScheme.primary,
-              backgroundImage: user.photoUrl != null 
-                  ? NetworkImage(user.photoUrl!)
+              backgroundImage: user.photoURL != null 
+                  ? NetworkImage(user.photoURL!)
                   : null,
-              child: user.photoUrl == null
+              child: user.photoURL == null
                   ? Text(
                       user.displayName.isNotEmpty 
                           ? user.displayName[0].toUpperCase()
@@ -95,10 +95,16 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Último acceso: ${_formatDate(user.lastLogin)}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+            if (user.metadata.lastSignInTime != null)
+              Text(
+                'Último acceso: ${_formatDate(user.metadata.lastSignInTime!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            if (user.metadata.creationTime != null)
+              Text(
+                'Cuenta creada: ${_formatDate(user.metadata.creationTime!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
           ],
         ),
       ),

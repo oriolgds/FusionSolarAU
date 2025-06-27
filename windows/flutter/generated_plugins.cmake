@@ -4,6 +4,8 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
+  firebase_auth
+  firebase_core
   flutter_secure_storage_windows
   url_launcher_windows
 )

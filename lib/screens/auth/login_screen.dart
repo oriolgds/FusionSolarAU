@@ -129,11 +129,11 @@ class LoginScreen extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: authProvider.isLoading ? null : () async {
-                      final success = await authProvider.signInWithGoogle();
-                      if (!success && context.mounted) {
+                      final userCredential = await authProvider.signInWithGoogle();
+                      if (userCredential == null && context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(authProvider.error ?? 'Error al iniciar sesión'),
+                            content: Text(authProvider.errorMessage ?? 'Error al iniciar sesión'),
                             backgroundColor: Colors.red,
                           ),
                         );
