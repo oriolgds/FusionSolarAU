@@ -41,7 +41,6 @@ class OnboardingService {
       print('Guardando onboarding para UID: ${user.uid}');
       await _firestore.collection('users').doc(user.uid).set({
         'hasSeenOnboarding': true,
-        'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       print('Onboarding guardado correctamente en Firestore.');
     } catch (e) {
