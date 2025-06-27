@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.1
+version: 1.1.0+3
 
 environment:
   sdk: ^3.8.1
@@ -36,7 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   google_fonts: ^6.1.0
   flutter_svg: ^2.0.10+1
-  flutter_animate: ^4.2.0
+  flutter_animate: ^4.5.2
+  smooth_page_indicator: ^1.1.0
   
   # State Management
   provider: ^6.1.1
@@ -60,10 +61,10 @@ dependencies:
   url_launcher: ^6.2.2
   package_info_plus: ^8.3.0
   flutter_launcher_icons: ^0.14.4
-  supabase_flutter: ^2.9.1
   # Firebase
   firebase_core: ^2.24.2
   firebase_auth: ^4.15.3
+  cloud_firestore: ^4.14.0
   google_sign_in: ^6.1.6
   # Opcional: Si necesitas firebase_ui_auth
   # firebase_ui_auth: ^1.8.0
@@ -96,6 +97,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - logo.jpeg
+    - assets/images/
 
 flutter_launcher_icons:
   android: "launcher_icon"
