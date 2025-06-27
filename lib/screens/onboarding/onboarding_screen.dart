@@ -24,7 +24,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       title: 'Monitoreo Inteligente de Energía Solar',
       description:
           'Conectamos con tu sistema FusionSolar para mostrarte en tiempo real la producción, consumo y excedente de energía solar de tu hogar.',
-      imagePath: 'assets/images/onboarding_solar_monitoring.png',
+      imagePath: 'assets/images/onboard/1.png',
       imagePrompt:
           'Imagen colorida y moderna de un panel solar con rayos de sol brillantes. En la esquina, una mascota amigable en forma de sol con ojos grandes y sonrisa cálida muestra en una tablet gráficos de producción solar en tiempo real. La pantalla muestra curvas de generación de energía, estadísticas y números positivos en verde. El fondo incluye una casa moderna con paneles solares en el techo y un cielo azul con pocas nubes.',
     ),
@@ -32,7 +32,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       title: 'Automatización Basada en Excedentes',
       description:
           'Crea reglas automáticas para aprovechar al máximo tu energía solar. Activa electrodomésticos cuando hay excedente y optimiza tu consumo energético.',
-      imagePath: 'assets/images/onboarding_automation.png',
+      imagePath: 'assets/images/onboard/2.png',
       imagePrompt:
           'Ilustración dinámica que muestra el flujo de energía en una casa inteligente. La mascota sol ahora lleva una capa de superhéroe y está configurando reglas de automatización en un panel de control. Se muestran iconos de electrodomésticos conectados con flechas de energía verde fluyendo desde el panel solar. Visualiza una lavadora encendiéndose automáticamente con una etiqueta "Excedente detectado: 2.5kW". Incluye gráficos de barras comparando consumo normal vs optimizado, y la casa brilla con un aura verde indicando uso eficiente de energía. El estilo debe ser amigable pero técnico.',
     ),
@@ -40,7 +40,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       title: 'Control Total de tu Hogar Inteligente',
       description:
           'Integra tus dispositivos Google Home para monitorear y controlar todo tu ecosistema desde una sola aplicación.',
-      imagePath: 'assets/images/onboarding_smart_home.png',
+      imagePath: 'assets/images/onboard/3.png',
       imagePrompt:
           'Ilustración interactiva de un hogar inteligente visto desde arriba o en corte transversal. La mascota sol aparece en diferentes habitaciones controlando distintos dispositivos. Muestra una sala de estar con luces inteligentes, cocina con electrodomésticos conectados, y habitación con termostato y persianas automáticas. Dispositivos Google Home distribuidos por la casa con pequeños iconos de conexión. Pantallas flotantes muestran estadísticas de ahorro energético para cada dispositivo. Incluye teléfono móvil en primer plano con la interfaz de la app FusionSolarAU mostrando el control centralizado. Paleta de colores vibrante pero armoniosa con tonos verdes y azules predominantes.',
     ),
