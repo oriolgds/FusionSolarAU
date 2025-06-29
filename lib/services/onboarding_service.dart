@@ -38,14 +38,18 @@ class OnboardingService {
         return;
       }
 
-      print('Guardando onboarding para UID: ${user.uid}');
-      await _firestore.collection('users').doc(user.uid).set({
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .set({
         'hasSeenOnboarding': true,
+        'onboardingCompletedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+
       print('Onboarding guardado correctamente en Firestore.');
     } catch (e) {
-      // Manejo de errores
-      print('Error al guardar estado de onboarding: $e');
+      print('Error al guardar el estado del onboarding: $e');
+      rethrow;
     }
   }
 }

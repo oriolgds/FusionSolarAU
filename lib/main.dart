@@ -62,27 +62,22 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   @override
   void initState() {
     super.initState();
-    _checkOnboardingStatus();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    // Solo esperamos a que se complete la inicialización
+    await Future.delayed(Duration.zero);
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   Future<void> _checkOnboardingStatus() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-    // Esperamos a que se complete el estado de autenticación
-    await Future.delayed(Duration.zero);
-
-    // Solo verificamos el estado de onboarding si el usuario está autenticado
-    if (authProvider.isAuthenticated) {
-      final hasSeenOnboarding = await _onboardingService.hasSeenOnboarding();
-      setState(() {
-        _shouldShowOnboarding = !hasSeenOnboarding;
-        _isLoading = false;
-      });
-    } else {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    final hasSeenOnboarding = await _onboardingService.hasSeenOnboarding();
+    setState(() {
+      _shouldShowOnboarding = !hasSeenOnboarding;
+    });
   }
 
   void _onOnboardingComplete() {
@@ -99,13 +94,34 @@ class _AppEntryPointState extends State<AppEntryPoint> {
 
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
+        // Si no está autenticado, mostrar pantalla de login
         if (authProvider.currentUser == null) {
+          // Resetear el estado de onboarding cuando no hay usuario
+          if (_shouldShowOnboarding) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              setState(() {
+                _shouldShowOnboarding = false;
+              });
+            });
+          }
           return const LoginScreen();
-        } else if (_shouldShowOnboarding) {
-          return OnboardingScreen(onComplete: _onOnboardingComplete);
-        } else {
-          return const HomeScreen();
+        } 
+        
+        // Si está autenticado, verificar onboarding
+        if (!_shouldShowOnboarding) {
+          // Solo verificar onboarding una vez cuando el usuario está autenticado
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _checkOnboardingStatus();
+          });
         }
+        
+        // Mostrar onboarding si es necesario
+        if (_shouldShowOnboarding) {
+          return OnboardingScreen(onComplete: _onOnboardingComplete);
+        }
+        
+        // Mostrar pantalla principal
+        return const HomeScreen();
       },
     );
   }
