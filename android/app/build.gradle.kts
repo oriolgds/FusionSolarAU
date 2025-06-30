@@ -28,7 +28,6 @@ dependencies {
 
     implementation("com.google.firebase:firebase-crashlytics")
   
-  
     // Add the dependencies for any other desired Firebase products
   
     // https://firebase.google.com/docs/android/setup#available-libraries

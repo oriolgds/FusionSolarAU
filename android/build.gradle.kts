@@ -6,7 +6,7 @@ allprojects {
 }
 plugins {
     id("com.android.application") version "8.7.3" apply false
-    id("com.google.gms.google-services") version "4.3.15" apply false
+    id("com.google.gms.google-services") version "4.4.1" apply false
     id("com.google.firebase.crashlytics") version "3.0.4" apply false
 }
 
@@ -23,4 +23,10 @@ subprojects {
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
+}
+
+buildscript {
+    dependencies {
+        classpath("com.google.gms:google-services:4.4.1")
+    }
 }
