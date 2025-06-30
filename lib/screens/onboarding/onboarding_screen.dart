@@ -185,13 +185,13 @@ class _OnboardingPageView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(40.0),
+      padding: const EdgeInsets.fromLTRB(40, 40, 40, 80), // Más margen abajo
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Imagen ilustrativa
-          Expanded(
-            flex: 5,
+          SizedBox(
+            height: 220,
             child:
                 Container(
                       margin: const EdgeInsets.only(bottom: 40),
@@ -239,17 +239,24 @@ class _OnboardingPageView extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          // Descripción
-          Text(
-            page.description,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.white.withOpacity(0.9),
+          // Descripción scrollable y centrada
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 120),
+              child: SingleChildScrollView(
+                child: Text(
+                  page.description,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                  textAlign: TextAlign.center,
+                ).animate().fadeIn(delay: 400.ms, duration: 600.ms),
+              ),
             ),
-            textAlign: TextAlign.center,
-          ).animate().fadeIn(delay: 400.ms, duration: 600.ms),
+          ),
 
-          const Spacer(flex: 2),
+          const SizedBox(height: 20),
         ],
       ),
     );
