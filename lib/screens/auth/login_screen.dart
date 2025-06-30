@@ -30,12 +30,12 @@ class LoginScreen extends StatelessWidget {
                   // Logo y título
                   _buildHeader(context),
                   const SizedBox(height: 48),
-                  
+
                   // Tarjeta de login
                   _buildLoginCard(context),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Información adicional
                   _buildInfoSection(context),
                 ],
@@ -70,9 +70,9 @@ class LoginScreen extends StatelessWidget {
             color: Color(0xFF4CAF50),
           ),
         ).animate().scale(duration: 600.ms).fadeIn(),
-        
+
         const SizedBox(height: 24),
-        
+
         Text(
           'FusionSolarAU',
           style: Theme.of(context).textTheme.headlineLarge?.copyWith(
@@ -80,16 +80,19 @@ class LoginScreen extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ).animate().slideY(begin: 0.3, duration: 600.ms).fadeIn(),
-        
+
         const SizedBox(height: 8),
-        
+
         Text(
-          'Automatización Inteligente con Energía Solar',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: Colors.white.withOpacity(0.9),
-          ),
-          textAlign: TextAlign.center,
-        ).animate().slideY(begin: 0.3, duration: 600.ms, delay: 200.ms).fadeIn(),
+              'Automatización Inteligente con Energía Solar',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Colors.white.withOpacity(0.9),
+              ),
+              textAlign: TextAlign.center,
+            )
+            .animate()
+            .slideY(begin: 0.3, duration: 600.ms, delay: 200.ms)
+            .fadeIn(),
       ],
     );
   }
@@ -97,48 +100,52 @@ class LoginScreen extends StatelessWidget {
   Widget _buildLoginCard(BuildContext context) {
     return Card(
       elevation: 8,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           children: [
             Text(
               'Iniciar Sesión',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             Text(
               'Conecta con tu cuenta de Google para comenzar',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
-            
+
             const SizedBox(height: 32),
-            
+
             Consumer<AuthProvider>(
               builder: (context, authProvider, _) {
                 return SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: authProvider.isLoading ? null : () async {
-                      final userCredential = await authProvider.signInWithGoogle();
-                      if (userCredential == null && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(authProvider.errorMessage ?? 'Error al iniciar sesión'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    },
+                    onPressed: authProvider.isLoading
+                        ? null
+                        : () async {
+                            final authResponse = await authProvider
+                                .signInWithGoogle();
+                            if (authResponse == null && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    authProvider.errorMessage ??
+                                        'Error al iniciar sesión',
+                                  ),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          },
                     icon: authProvider.isLoading
                         ? const SizedBox(
                             width: 20,
@@ -154,7 +161,9 @@ class LoginScreen extends StatelessWidget {
                             },
                           ),
                     label: Text(
-                      authProvider.isLoading ? 'Iniciando sesión...' : 'Continuar con Google',
+                      authProvider.isLoading
+                          ? 'Iniciando sesión...'
+                          : 'Continuar con Google',
                       style: const TextStyle(fontSize: 16),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -190,21 +199,21 @@ class LoginScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           _buildFeatureItem(
             context,
             Icons.flash_on,
             'Monitoreo en tiempo real',
             'Visualiza tu producción y consumo solar',
           ),
-          
+
           _buildFeatureItem(
             context,
             Icons.home_filled,
             'Control inteligente',
             'Automatiza dispositivos Google Home',
           ),
-          
+
           _buildFeatureItem(
             context,
             Icons.savings,
@@ -216,7 +225,12 @@ class LoginScreen extends StatelessWidget {
     ).animate().slideY(begin: 0.3, duration: 600.ms, delay: 600.ms).fadeIn();
   }
 
-  Widget _buildFeatureItem(BuildContext context, IconData icon, String title, String description) {
+  Widget _buildFeatureItem(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String description,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(

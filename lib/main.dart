@@ -1,6 +1,7 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/home/home_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -11,14 +12,14 @@ import 'providers/device_provider.dart';
 import 'providers/automation_provider.dart';
 import 'services/onboarding_service.dart';
 import 'themes/app_theme.dart';
-import 'firebase_options.dart';
-
+import 'dart:async';
 void main() async {
-  // Asegurar que el binding de Flutter esté inicializado
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Inicializar Firebase con las opciones predeterminadas
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await dotenv.load();
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+  );
 
   runApp(const FusionSolarAUApp());
 }
@@ -58,26 +59,51 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   final OnboardingService _onboardingService = OnboardingService();
   bool _isLoading = true;
   bool _shouldShowOnboarding = false;
+  StreamSubscription<AuthState>? _authSub;
 
   @override
   void initState() {
     super.initState();
-    _initializeApp();
+    _checkOnboardingStatus();
+    // Escuchar cambios de autenticación
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((event) {
+      // Solo si el usuario se autentica
+      if (event.event == AuthChangeEvent.signedIn) {
+        _checkOnboardingStatus();
+      }
+      // Si el usuario cierra sesión, ocultar onboarding
+      if (event.event == AuthChangeEvent.signedOut) {
+        setState(() {
+          _shouldShowOnboarding = false;
+        });
+      }
+    });
   }
 
-  Future<void> _initializeApp() async {
-    // Solo esperamos a que se complete la inicialización
-    await Future.delayed(Duration.zero);
-    setState(() {
-      _isLoading = false;
-    });
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _checkOnboardingStatus() async {
-    final hasSeenOnboarding = await _onboardingService.hasSeenOnboarding();
-    setState(() {
-      _shouldShowOnboarding = !hasSeenOnboarding;
-    });
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    // Esperamos a que se complete el estado de autenticación
+    await Future.delayed(Duration.zero);
+
+    // Solo verificamos el estado de onboarding si el usuario está autenticado
+    if (authProvider.isAuthenticated) {
+      final hasSeenOnboarding = await _onboardingService.hasSeenOnboarding();
+      setState(() {
+        _shouldShowOnboarding = !hasSeenOnboarding;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   void _onOnboardingComplete() {
@@ -94,34 +120,13 @@ class _AppEntryPointState extends State<AppEntryPoint> {
 
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
-        // Si no está autenticado, mostrar pantalla de login
         if (authProvider.currentUser == null) {
-          // Resetear el estado de onboarding cuando no hay usuario
-          if (_shouldShowOnboarding) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              setState(() {
-                _shouldShowOnboarding = false;
-              });
-            });
-          }
           return const LoginScreen();
-        } 
-        
-        // Si está autenticado, verificar onboarding
-        if (!_shouldShowOnboarding) {
-          // Solo verificar onboarding una vez cuando el usuario está autenticado
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _checkOnboardingStatus();
-          });
-        }
-        
-        // Mostrar onboarding si es necesario
-        if (_shouldShowOnboarding) {
+        } else if (_shouldShowOnboarding) {
           return OnboardingScreen(onComplete: _onOnboardingComplete);
+        } else {
+          return const HomeScreen();
         }
-        
-        // Mostrar pantalla principal
-        return const HomeScreen();
       },
     );
   }

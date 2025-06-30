@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../devices/devices_screen.dart';
 import '../automation/automation_screen.dart';
@@ -31,11 +30,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _updateLastLogin() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'lastLogin': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await Supabase.instance.client.from('users').upsert({
+        'id': user.id,
+        'last_login': DateTime.now().toIso8601String(),
+      });
     }
   }
 

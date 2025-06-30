@@ -63,3 +63,4 @@ google-services.json
 !vscode/launch.json
 !vscode/extensions.json
 /android/.kotlin
+.env

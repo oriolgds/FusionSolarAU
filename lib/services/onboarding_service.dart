@@ -1,28 +1,24 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class OnboardingService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   /// Verifica si el usuario ya ha visto el onboarding
   Future<bool> hasSeenOnboarding() async {
     try {
-      final user = _auth.currentUser;
+      final user = _supabase.auth.currentUser;
       if (user == null) {
         return false;
       }
-
-      final docSnapshot = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .get();
-
-      if (!docSnapshot.exists) {
+      final response = await _supabase
+          .from('user_onboarding')
+          .select('has_seen_onboarding')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (response == null) {
         return false;
       }
-
-      return docSnapshot.data()?['hasSeenOnboarding'] ?? false;
+      return response['has_seen_onboarding'] == true;
     } catch (e) {
       // Si hay un error, mostramos el onboarding por seguridad
       return false;
@@ -32,24 +28,19 @@ class OnboardingService {
   /// Marca que el usuario ha visto el onboarding
   Future<void> markOnboardingAsSeen() async {
     try {
-      final user = _auth.currentUser;
+      final user = _supabase.auth.currentUser;
       if (user == null) {
         print('Usuario no autenticado, no se puede guardar onboarding.');
         return;
       }
-
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .set({
-        'hasSeenOnboarding': true,
-        'onboardingCompletedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      print('Onboarding guardado correctamente en Firestore.');
+      await _supabase.from('user_onboarding').upsert({
+        'id': user.id,
+        'has_seen_onboarding': true,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      });
+      print('Onboarding guardado correctamente en Supabase.');
     } catch (e) {
-      print('Error al guardar el estado del onboarding: $e');
-      rethrow;
+      print('Error al guardar estado de onboarding: $e');
     }
   }
 }
