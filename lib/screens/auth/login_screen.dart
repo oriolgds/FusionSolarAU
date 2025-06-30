@@ -132,6 +132,7 @@ class LoginScreen extends StatelessWidget {
                     onPressed: authProvider.isLoading
                         ? null
                         : () async {
+                          
                             final authResponse = await authProvider
                                 .signInWithGoogle();
                             if (authResponse == null && context.mounted) {

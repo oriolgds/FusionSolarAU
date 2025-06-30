@@ -10,6 +10,7 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.firebase.crashlytics")
     
 }
 dependencies {
@@ -24,6 +25,8 @@ dependencies {
     // When using the BoM, don't specify versions in Firebase dependencies
   
     implementation("com.google.firebase:firebase-analytics")
+
+    implementation("com.google.firebase:firebase-crashlytics")
   
   
     // Add the dependencies for any other desired Firebase products
