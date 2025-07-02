@@ -13,6 +13,8 @@ import 'providers/automation_provider.dart';
 import 'services/onboarding_service.dart';
 import 'themes/app_theme.dart';
 import 'dart:async';
+
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -21,7 +23,7 @@ void main() async {
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
-  
+
   runApp(const FusionSolarAUApp());
 
   
