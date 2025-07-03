@@ -13,20 +13,19 @@ import 'providers/automation_provider.dart';
 import 'services/onboarding_service.dart';
 import 'themes/app_theme.dart';
 import 'dart:async';
-
+import 'firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   await dotenv.load();
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
-
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const FusionSolarAUApp());
-
-  
 }
 
 class FusionSolarAUApp extends StatelessWidget {
