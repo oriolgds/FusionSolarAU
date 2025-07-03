@@ -176,6 +176,10 @@ lib/
 
 Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para detalles.
 
+## 📚 Documentación Oficial de Fusion Solar
+
+- [Documentación de la API de Fusion Solar (Huawei)](https://support.huawei.com/enterprise/en/doc/EDOC1100465337)
+
 ## 📞 Soporte
 
 Si tienes alguna pregunta o necesitas ayuda:
