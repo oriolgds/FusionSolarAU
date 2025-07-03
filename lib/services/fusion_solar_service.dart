@@ -1,17 +1,87 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import '../models/solar_data.dart';
+import 'fusion_solar_oauth_service.dart';
 
 class FusionSolarService {
-  // En una implementación real, aquí tendríamos la integración con la API de Fusion Solar
-  // Por ahora, simularemos datos realistas
-  
+  final FusionSolarOAuthService _oauthService = FusionSolarOAuthService();
   final Random _random = Random();
 
   Future<SolarData> getCurrentData() async {
-    // Simular llamada a la API
-    await Future.delayed(const Duration(milliseconds: 800));
+    try {
+      // Verificar si hay configuración OAuth válida
+      final hasValidConfig = await _oauthService.hasValidOAuthConfig();
 
+      if (!hasValidConfig) {
+        // Si no hay configuración válida, usar datos simulados
+        return _getSimulatedData();
+      }
+
+      // Intentar obtener datos reales de FusionSolar
+      final response = await _oauthService.authenticatedRequest(
+        '/rest/pvms/web/kiosks/v1/station-kiosk-file',
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return _parseRealData(data);
+      } else {
+        print('Error obteniendo datos reales: ${response.statusCode}');
+        // Fallback a datos simulados
+        return _getSimulatedData();
+      }
+    } catch (e) {
+      print('Error en getCurrentData: $e');
+      // Fallback a datos simulados en caso de error
+      return _getSimulatedData();
+    }
+  }
+
+  Future<List<SolarData>> getHistoricalData({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    try {
+      final hasValidConfig = await _oauthService.hasValidOAuthConfig();
+
+      if (!hasValidConfig) {
+        return _getSimulatedHistoricalData(startDate, endDate);
+      }
+
+      // Aquí implementarías la llamada real a la API histórica
+      // Por ahora, usar datos simulados
+      return _getSimulatedHistoricalData(startDate, endDate);
+    } catch (e) {
+      print('Error obteniendo datos históricos: $e');
+      return _getSimulatedHistoricalData(startDate, endDate);
+    }
+  }
+
+  /// Parsea datos reales de la API de FusionSolar
+  SolarData _parseRealData(Map<String, dynamic> apiData) {
+    // Implementar parsing según la estructura real de la API
+    // Esta es una implementación de ejemplo
+    final now = DateTime.now();
+
+    return SolarData(
+      currentPower: (apiData['currentPower'] ?? 0.0).toDouble(),
+      dailyProduction: (apiData['dailyProduction'] ?? 0.0).toDouble(),
+      monthlyProduction: (apiData['monthlyProduction'] ?? 0.0).toDouble(),
+      totalProduction: (apiData['totalProduction'] ?? 0.0).toDouble(),
+      currentConsumption: (apiData['currentConsumption'] ?? 2.0).toDouble(),
+      dailyConsumption: (apiData['dailyConsumption'] ?? 25.0).toDouble(),
+      currentExcess:
+          (apiData['currentPower'] ?? 0.0).toDouble() -
+          (apiData['currentConsumption'] ?? 2.0).toDouble(),
+      batteryLevel: (apiData['batteryLevel'] ?? 75.0).toDouble(),
+      isProducing: (apiData['currentPower'] ?? 0.0) > 0.1,
+      timestamp: now,
+    );
+  }
+
+  /// Datos simulados como fallback
+  SolarData _getSimulatedData() {
     final now = DateTime.now();
     final hour = now.hour;
     
@@ -41,12 +111,10 @@ class FusionSolarService {
     );
   }
 
-  Future<List<SolarData>> getHistoricalData({
-    required DateTime startDate,
-    required DateTime endDate,
-  }) async {
-    await Future.delayed(const Duration(seconds: 1));
-    
+  List<SolarData> _getSimulatedHistoricalData(
+    DateTime startDate,
+    DateTime endDate,
+  ) {
     final data = <SolarData>[];
     var currentDate = startDate;
     

@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/solar_data_provider.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/automation_provider.dart';
+import 'fusion_solar_config_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -218,6 +219,20 @@ class ProfileScreen extends StatelessWidget {
     return Card(
       child: Column(
         children: [
+          ListTile(
+            leading: const Icon(Icons.solar_power),
+            title: const Text('Configuración FusionSolar'),
+            subtitle: const Text('Conectar con tu sistema solar'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const FusionSolarConfigScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Configuración'),
