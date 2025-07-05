@@ -127,11 +127,15 @@ class PlantProvider extends ChangeNotifier {
         _plants = stations.map((e) => Plant.fromJson(e as Map<String, dynamic>)).toList();
         // Guardamos en Supabase (upsert)
         for (final plant in _plants) {
-          await _supabase.from('plants').upsert({
-            ...plant.toJson(),
-            'user_id': user.id,
-            'fetched_at': DateTime.now().toIso8601String(),
-          });
+          await _supabase.from('plants').upsert(
+            {
+              ...plant.toJson(),
+              'user_id': user.id,
+              'fetched_at': DateTime.now().toIso8601String(),
+            },
+            onConflict: 'user_id,stationCode',
+            ignoreDuplicates: true,
+          );
         }
         // Grabar última descarga
         await _supabase.from('plant_fetch_meta').upsert({
