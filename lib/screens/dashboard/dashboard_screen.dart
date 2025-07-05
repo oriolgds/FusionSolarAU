@@ -68,9 +68,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Recargar la configuración cuando volvemos a esta pantalla
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkFusionSolarConfig();
-    });
+    // WidgetsBinding.instance.addPostFrameCallback((_) {
+    //   _checkFusionSolarConfig();
+    // });
   }
 
   // This method is called when the user returns to the dashboard from the config screen

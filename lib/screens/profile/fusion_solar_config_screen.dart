@@ -203,6 +203,8 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
         if (widget.onConfigUpdated != null) {
           widget.onConfigUpdated!();
         }
+        // Notificar que se ha configurado correctamente
+        Navigator.of(context).pop(true);
       } else {
         throw Exception('No se pudo obtener el token de sesión');
       }
@@ -271,6 +273,8 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
         if (widget.onConfigUpdated != null) {
           widget.onConfigUpdated!();
         }
+        // Notificar que se ha cerrado sesión correctamente
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       setState(() => _isLoading = false);
