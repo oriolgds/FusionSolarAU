@@ -18,16 +18,17 @@ class FusionSolarService {
         return _getSimulatedData();
       }
 
-      // Intentar obtener datos reales de FusionSolar
-      final response = await _oauthService.authenticatedRequest(
+      // Intentar obtener datos reales de FusionSolar usando el nuevo método
+      final data = await _oauthService.handleApiCall(
         '/rest/pvms/web/kiosks/v1/station-kiosk-file',
       );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      if (data != null && data['success'] == true) {
         return _parseRealData(data);
       } else {
-        print('Error obteniendo datos reales: ${response.statusCode}');
+        print(
+          'Error obteniendo datos reales: ${data?['message'] ?? 'Unknown error'}',
+        );
         // Fallback a datos simulados
         return _getSimulatedData();
       }
@@ -84,7 +85,7 @@ class FusionSolarService {
   SolarData _getSimulatedData() {
     final now = DateTime.now();
     final hour = now.hour;
-    
+
     // Simular patrones realistas de generación solar
     double currentPower = 0;
     if (hour >= 6 && hour <= 18) {
@@ -117,36 +118,39 @@ class FusionSolarService {
   ) {
     final data = <SolarData>[];
     var currentDate = startDate;
-    
+
     while (currentDate.isBefore(endDate)) {
       // Generar datos históricos simulados
-      data.add(SolarData(
-        currentPower: 0, // Los datos históricos no incluyen potencia instantánea
-        dailyProduction: 15.0 + _random.nextDouble() * 25.0,
-        monthlyProduction: 0,
-        totalProduction: 0,
-        currentConsumption: 0,
-        dailyConsumption: 20.0 + _random.nextDouble() * 15.0,
-        currentExcess: 0,
-        batteryLevel: 50.0 + _random.nextDouble() * 40.0,
-        isProducing: false,
-        timestamp: currentDate,
-      ));
-      
+      data.add(
+        SolarData(
+          currentPower:
+              0, // Los datos históricos no incluyen potencia instantánea
+          dailyProduction: 15.0 + _random.nextDouble() * 25.0,
+          monthlyProduction: 0,
+          totalProduction: 0,
+          currentConsumption: 0,
+          dailyConsumption: 20.0 + _random.nextDouble() * 15.0,
+          currentExcess: 0,
+          batteryLevel: 50.0 + _random.nextDouble() * 40.0,
+          isProducing: false,
+          timestamp: currentDate,
+        ),
+      );
+
       currentDate = currentDate.add(const Duration(days: 1));
     }
-    
+
     return data;
   }
 
   double _calculateSolarFactor(int hour) {
     // Simular curva solar realista
     if (hour < 6 || hour > 18) return 0;
-    
+
     const peakHour = 12;
     final distanceFromPeak = (hour - peakHour).abs();
     const maxDistance = 6;
-    
+
     return 1 - (distanceFromPeak / maxDistance);
   }
 
@@ -161,14 +165,15 @@ class FusionSolarService {
     final hour = date.hour;
     if (hour < 19) {
       // Si aún no ha terminado el día, calcular producción parcial
-      final completedHours = hour - 6; // Asumiendo que la producción empieza a las 6 AM
+      final completedHours =
+          hour - 6; // Asumiendo que la producción empieza a las 6 AM
       if (completedHours <= 0) return 0;
-      
+
       const totalDayProduction = 30.0;
       final factor = completedHours / 12.0; // 12 horas de producción
       return totalDayProduction * factor + _random.nextDouble() * 5.0;
     }
-    
+
     // Día completo
     return 25.0 + _random.nextDouble() * 15.0;
   }

@@ -51,7 +51,7 @@ dependencies:
   web_socket_channel: ^3.0.3
   
   # Local Storage
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.5.3
   
   # Authentication & Storage
   flutter_secure_storage: ^9.0.0

@@ -5,6 +5,7 @@ import '../models/plant.dart';
 import '../services/fusion_solar_oauth_service.dart';
 import 'dart:convert';
 import 'package:logger/logger.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Provider encargado de gestionar las plantas (estaciones) del usuario.
 ///
@@ -29,7 +30,29 @@ class PlantProvider extends ChangeNotifier {
   String? get selectedStationCode => _selectedPlant?.stationCode;
 
   PlantProvider() {
-    _loadPlants();
+    _loadFromCache().then((_) => _loadPlants());
+  }
+
+  Future<void> _loadFromCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('cached_plants');
+      if (cached != null) {
+        final List<dynamic> list = jsonDecode(cached) as List<dynamic>;
+        _plants = list.map((e) => Plant.fromJson(e as Map<String, dynamic>)).toList();
+        if (_plants.isNotEmpty && _selectedPlant == null) {
+          _selectedPlant = _plants.first;
+        }
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveToCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('cached_plants', jsonEncode(_plants.map((e) => e.toJson()).toList()));
+    } catch (_) {}
   }
 
   Future<void> _loadPlants() async {
@@ -45,6 +68,7 @@ class PlantProvider extends ChangeNotifier {
       if (data.isNotEmpty) {
         _plants = data.map((p) => Plant.fromJson(p)).toList();
         _log.i('Loaded ${_plants.length} plants from Supabase');
+        await _saveToCache();
       }
 
       // 2. Verificar meta para decidir si llamar a la API
@@ -88,35 +112,36 @@ class PlantProvider extends ChangeNotifier {
         return;
       }
       final xsrfToken = await _oauthService.getCurrentXsrfToken();
-      if (xsrfToken == null) return;
+      if (xsrfToken == null) {
+        return;
+      }
 
-      final response = await _oauthService.authenticatedRequest(
+      // Usar helper que maneja re-login y parsing JSON
+      final json = await _oauthService.handleApiCall(
         '/thirdData/getStationList',
         method: 'POST',
         body: const {},
       );
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> json = jsonDecode(response.body) as Map<String, dynamic>;
-        if (json['success'] == true && json['data'] is List) {
-          final List<dynamic> stations = json['data'];
-          _plants = stations.map((e) => Plant.fromJson(e as Map<String, dynamic>)).toList();
-          // Guardamos en Supabase (upsert)
-          for (final plant in _plants) {
-            await _supabase.from('plants').upsert({
-              ...plant.toJson(),
-              'user_id': user.id,
-              'fetched_at': DateTime.now().toIso8601String(),
-            });
-          }
-          // Grabar última descarga
-          await _supabase.from('plant_fetch_meta').upsert({
+      if (json != null && json['success'] == true && json['data'] is List) {
+        final List<dynamic> stations = json['data'];
+        _plants = stations.map((e) => Plant.fromJson(e as Map<String, dynamic>)).toList();
+        // Guardamos en Supabase (upsert)
+        for (final plant in _plants) {
+          await _supabase.from('plants').upsert({
+            ...plant.toJson(),
             'user_id': user.id,
-            'last_fetch_at': DateTime.now().toIso8601String(),
+            'fetched_at': DateTime.now().toIso8601String(),
           });
-          _log.i('Fetched ${_plants.length} plants from API and saved to Supabase');
         }
+        // Grabar última descarga
+        await _supabase.from('plant_fetch_meta').upsert({
+          'user_id': user.id,
+          'last_fetch_at': DateTime.now().toIso8601String(),
+        });
+        await _saveToCache();
+        _log.i('Fetched ${_plants.length} plants from API and saved to Supabase/cache');
       } else {
-        _log.e('Error al solicitar lista de plantas: ${response.statusCode}');
+        _log.e('Error al solicitar lista de plantas o respuesta sin éxito');
       }
     } catch (e) {
       _log.e('Error fetchFromApiAndSave', error: e);

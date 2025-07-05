@@ -3,9 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/solar_data_provider.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/automation_provider.dart';
-import '../../providers/fusion_solar_config_provider.dart';
 import '../../models/solar_data.dart';
-import '../../providers/plant_provider.dart';
 import '../../services/fusion_solar_oauth_service.dart';
 import 'fusion_solar_not_configured_screen.dart';
 
@@ -26,9 +24,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _checkFusionSolarConfig();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FusionSolarConfigProvider>().checkConfiguration();
-    });
   }
 
   Future<void> _checkFusionSolarConfig() async {
@@ -73,9 +68,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Recargar la configuración cuando volvemos a esta pantalla
-    // WidgetsBinding.instance.addPostFrameCallback((_) {
-    //   _checkFusionSolarConfig();
-    // });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkFusionSolarConfig();
+    });
   }
 
   // This method is called when the user returns to the dashboard from the config screen
@@ -96,28 +91,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<FusionSolarConfigProvider>(
-      builder: (context, configProvider, _) {
-        if (configProvider.isLoading) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+    if (_isCheckingConfig) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-        if (!configProvider.hasValidConfig) {
-          return FusionSolarNotConfiguredScreen(
-            onConfigured: () {
-              configProvider.onConfigurationUpdated(true);
-            },
-          );
-        }
+    if (!_hasValidConfig) {
+      return FusionSolarNotConfiguredScreen(
+        onConfigured: _handleConfigUpdated,
+      );
+    }
 
-        return _buildMainDashboard();
-      },
-    );
-  }
-
-  Widget _buildMainDashboard() {
     return Scaffold(
       appBar: AppBar(
         title: const Text('FusionSolarAU'),
@@ -205,9 +190,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Selector de planta
-          _buildPlantSelector(),
-          const SizedBox(height: 16),
           // Tarjetas principales de energía
           Row(
             children: [
@@ -237,32 +219,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _buildStatsSection(context, solarData),
         ],
       ),
-    );
-  }
-
-  Widget _buildPlantSelector() {
-    return Consumer<PlantProvider>(
-      builder: (context, plantProvider, _) {
-        if (plantProvider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (plantProvider.plants.isEmpty) {
-          return const Text('Sin plantas configuradas');
-        }
-        return DropdownButton<String>(
-          value: plantProvider.selectedStationCode,
-          items: plantProvider.plants.map((plant) => DropdownMenuItem<String>(
-                value: plant.stationCode,
-                child: Text(plant.stationName),
-              )).toList(),
-          onChanged: (value) {
-            if (value != null) {
-              plantProvider.setSelectedStationCode(value);
-              context.read<SolarDataProvider>().refreshData();
-            }
-          },
-        );
-      },
     );
   }
 

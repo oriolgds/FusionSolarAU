@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../services/fusion_solar_oauth_service.dart';
-import '../../providers/fusion_solar_config_provider.dart';
 
 class FusionSolarConfigScreen extends StatefulWidget {
   final VoidCallback? onConfigUpdated;
@@ -201,20 +199,10 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
           const SnackBar(content: Text('¡Inicio de sesión correcto!'), backgroundColor: Colors.green),
         );
         await _checkCurrentConfig();
-        
-        // Notificar al provider de configuración
-        if (mounted) {
-          context.read<FusionSolarConfigProvider>().onConfigurationUpdated(
-            true,
-          );
-        }
-        
         // Notify parent that configuration was updated
         if (widget.onConfigUpdated != null) {
           widget.onConfigUpdated!();
         }
-        // Notificar que se ha configurado correctamente
-        Navigator.of(context).pop(true);
       } else {
         throw Exception('No se pudo obtener el token de sesión');
       }
@@ -279,16 +267,10 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
           const SnackBar(content: Text('Sesión FusionSolar cerrada'), backgroundColor: Colors.green),
         );
         await _checkCurrentConfig();
-        
-        // Notificar al provider de configuración
-        context.read<FusionSolarConfigProvider>().onConfigurationUpdated(false);
-        
         // Notify parent that configuration was updated
         if (widget.onConfigUpdated != null) {
           widget.onConfigUpdated!();
         }
-        // Regresar a la pantalla anterior
-        Navigator.of(context).pop(true);
       }
     } catch (e) {
       setState(() => _isLoading = false);

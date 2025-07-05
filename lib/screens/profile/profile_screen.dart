@@ -224,18 +224,12 @@ class ProfileScreen extends StatelessWidget {
             title: const Text('Configuración FusionSolar'),
             subtitle: const Text('Conectar con tu sistema solar'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () async {
-              final result = await Navigator.of(context).push<bool>(
+            onTap: () {
+              Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => const FusionSolarConfigScreen(),
                 ),
               );
-              if (result == true) {
-                // Fuerza reconstrucción para que el dashboard se actualice si es necesario
-                if (context.mounted) {
-                  (context as Element).markNeedsBuild();
-                }
-              }
             },
           ),
           const Divider(height: 1),

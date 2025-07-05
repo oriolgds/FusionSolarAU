@@ -151,8 +151,6 @@ class FusionSolarOAuthService {
           await _supabase.from('users').update({
             'fusion_solar_xsrf_token': null,
             'fusion_solar_xsrf_token_expires_at': null,
-                'fusion_solar_api_username': null,
-                'fusion_solar_api_password': null,
           }).eq('id', user.id);
         }
       } else {
@@ -170,10 +168,21 @@ class FusionSolarOAuthService {
     final data = await _supabase.from('users').select().eq('id', user.id).single();
     final token = data['fusion_solar_xsrf_token'];
     final expiresAt = data['fusion_solar_xsrf_token_expires_at'];
-    if (token == null || expiresAt == null) return false;
+    if (token == null || expiresAt == null) {
+      // No hay token, intentar login transparente
+      final reloginOk = await _reloginUsingSavedCredentials();
+      return reloginOk;
+    }
     final expiry = DateTime.tryParse(expiresAt);
     if (expiry == null) return false;
-    return DateTime.now().isBefore(expiry);
+
+    if (DateTime.now().isBefore(expiry)) {
+      return true; // aún válido
+    }
+
+    // Token expirado: intentar re-login transparente
+    final reloginOk = await _reloginUsingSavedCredentials();
+    return reloginOk;
   }
 
   /// Verifica si el usuario tiene alguna configuración de OAuth, aunque sea inválida
@@ -209,10 +218,9 @@ class FusionSolarOAuthService {
     final xsrfToken = data['fusion_solar_xsrf_token'];
     if (xsrfToken == null) throw Exception('No hay sesión activa de FusionSolar');
     final url = Uri.parse('https://eu5.fusionsolar.huawei.com$endpoint');
-    final headers = <String, String>{
+    final headers = {
       'Content-Type': 'application/json',
       'Cookie': 'XSRF-TOKEN=$xsrfToken',
-      'XSRF-TOKEN': xsrfToken.toString(), // Header requerido por API
     };
     switch (method.toUpperCase()) {
       case 'POST':
@@ -223,6 +231,109 @@ class FusionSolarOAuthService {
         return await http.delete(url, headers: headers);
       default:
         return await http.get(url, headers: headers);
+    }
+  }
+
+  /// Método de ayuda para realizar llamadas a la API y decodificar la respuesta JSON.
+  /// Si se recibe un `failCode` 305 (USER_MUST_RELOGIN) intenta hacer login de nuevo
+  /// usando las credenciales almacenadas en Supabase, actualiza el token y reintenta
+  /// una sola vez la misma petición.
+  Future<Map<String, dynamic>?> handleApiCall(
+    String endpoint, {
+    String method = 'GET',
+    Map<String, dynamic>? body,
+  }) async {
+    int attempt = 0;
+    while (attempt < 2) {
+      try {
+        final response = await authenticatedRequest(
+          endpoint,
+          method: method,
+          body: body,
+        );
+
+        // Si la respuesta no es 200, probablemente el token es inválido o expiró
+        if (response.statusCode != 200) {
+          if (attempt == 0) {
+            final reloginOk = await _reloginUsingSavedCredentials();
+            if (!reloginOk) {
+              print('HTTP ${response.statusCode} y relogin fallido');
+              return null;
+            }
+            attempt++;
+            continue; // repetir llamada
+          }
+          print('Error HTTP \\${response.statusCode}: \\${response.body}');
+          return null;
+        }
+
+        Map<String, dynamic>? data;
+        try {
+          data = json.decode(response.body) as Map<String, dynamic>;
+        } catch (_) {
+          // Si no se pudo parsear como JSON, intentar relogin una vez
+          if (attempt == 0) {
+            final reloginOk = await _reloginUsingSavedCredentials();
+            if (!reloginOk) return null;
+            attempt++;
+            continue;
+          }
+          return null;
+        }
+
+        // Revisar si el token expiró (failCode 305)
+        if (data['success'] == false && data['failCode'] == 305) {
+          if (attempt == 0) {
+            final reloginOk = await _reloginUsingSavedCredentials();
+            if (!reloginOk) return data;
+            attempt++;
+            continue;
+          }
+        }
+
+        return data;
+      } catch (e) {
+        print('Error en handleApiCall: \\${e}');
+        return null;
+      }
+    }
+    return null; // No debería llegar aquí
+  }
+
+  /// Intenta hacer login nuevamente usando las credenciales guardadas en Supabase.
+  /// Devuelve `true` si el login y la actualización del token tuvieron éxito.
+  Future<bool> _reloginUsingSavedCredentials() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return false;
+
+      final userData = await _supabase
+          .from('users')
+          .select('fusion_solar_api_username, fusion_solar_api_password')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (userData == null || userData['fusion_solar_api_username'] == null || userData['fusion_solar_api_password'] == null) {
+        return false;
+      }
+
+      final username = userData['fusion_solar_api_username'] as String;
+      final password = userData['fusion_solar_api_password'] as String;
+
+      final newToken = await loginWithAccount(username, password);
+
+      if (newToken != null) {
+        // Refrescar in-memory token por si otras partes lo leen inmediatamente
+        await _supabase.from('users').update({
+          'fusion_solar_xsrf_token': newToken,
+          'fusion_solar_xsrf_token_expires_at': DateTime.now().add(const Duration(minutes: 30)).toIso8601String(),
+        }).eq('id', user.id);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error en _reloginUsingSavedCredentials: \\${e}');
+      return false;
     }
   }
 
