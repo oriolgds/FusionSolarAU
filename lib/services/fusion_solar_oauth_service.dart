@@ -215,12 +215,13 @@ class FusionSolarOAuthService {
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('No autenticado');
     final data = await _supabase.from('users').select().eq('id', user.id).single();
-    final xsrfToken = data['fusion_solar_xsrf_token'];
+    final xsrfToken = data['fusion_solar_xsrf_token'] as String?;
     if (xsrfToken == null) throw Exception('No hay sesión activa de FusionSolar');
     final url = Uri.parse('https://eu5.fusionsolar.huawei.com$endpoint');
     final headers = {
       'Content-Type': 'application/json',
       'Cookie': 'XSRF-TOKEN=$xsrfToken',
+      'XSRF-TOKEN': xsrfToken,
     };
     switch (method.toUpperCase()) {
       case 'POST':

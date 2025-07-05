@@ -10,6 +10,7 @@ import 'providers/auth_provider.dart';
 import 'providers/solar_data_provider.dart';
 import 'providers/device_provider.dart';
 import 'providers/automation_provider.dart';
+import 'providers/plant_provider.dart';
 import 'services/onboarding_service.dart';
 import 'themes/app_theme.dart';
 import 'dart:async';
@@ -39,6 +40,7 @@ class FusionSolarAUApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SolarDataProvider()),
         ChangeNotifierProvider(create: (_) => DeviceProvider()),
         ChangeNotifierProvider(create: (_) => AutomationProvider()),
+        ChangeNotifierProvider(create: (_) => PlantProvider()),
       ],
       child: MaterialApp(
         title: 'FusionSolarAU',

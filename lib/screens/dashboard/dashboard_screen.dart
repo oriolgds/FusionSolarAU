@@ -5,6 +5,7 @@ import '../../providers/device_provider.dart';
 import '../../providers/automation_provider.dart';
 import '../../models/solar_data.dart';
 import '../../services/fusion_solar_oauth_service.dart';
+import '../../providers/plant_provider.dart';
 import 'fusion_solar_not_configured_screen.dart';
 
 
@@ -107,6 +108,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('FusionSolarAU'),
         actions: [
+          Consumer<PlantProvider>(
+            builder: (context, plantProvider, _) {
+              if (plantProvider.plants.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: plantProvider.selectedStationCode,
+                  items: plantProvider.plants
+                      .map(
+                        (p) => DropdownMenuItem<String>(
+                          value: p.stationCode,
+                          child: Text(
+                            p.stationName,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (code) async {
+                    if (code != null) {
+                      plantProvider.setSelectedStationCode(code);
+                      // Refrescar datos para la nueva planta
+                      await context.read<SolarDataProvider>().refreshData();
+                      await context.read<DeviceProvider>().refreshDevices();
+                    }
+                  },
+                ),
+              );
+            },
+          ),
           Consumer<SolarDataProvider>(
             builder: (context, provider, _) {
               return IconButton(
