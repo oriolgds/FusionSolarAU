@@ -151,6 +151,8 @@ class FusionSolarOAuthService {
           await _supabase.from('users').update({
             'fusion_solar_xsrf_token': null,
             'fusion_solar_xsrf_token_expires_at': null,
+                'fusion_solar_api_username': null,
+                'fusion_solar_api_password': null,
           }).eq('id', user.id);
         }
       } else {
