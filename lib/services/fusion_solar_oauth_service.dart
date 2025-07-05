@@ -209,9 +209,10 @@ class FusionSolarOAuthService {
     final xsrfToken = data['fusion_solar_xsrf_token'];
     if (xsrfToken == null) throw Exception('No hay sesión activa de FusionSolar');
     final url = Uri.parse('https://eu5.fusionsolar.huawei.com$endpoint');
-    final headers = {
+    final headers = <String, String>{
       'Content-Type': 'application/json',
       'Cookie': 'XSRF-TOKEN=$xsrfToken',
+      'XSRF-TOKEN': xsrfToken.toString(), // Header requerido por API
     };
     switch (method.toUpperCase()) {
       case 'POST':
