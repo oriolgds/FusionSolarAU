@@ -1,87 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 import 'package:http/http.dart' as http;
-import 'package:crypto/crypto.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class FusionSolarOAuthService {
   static const String _authBaseUrl = 'https://oauth2.fusionsolar.huawei.com';
-  static const String _apiBaseUrl = 'https://eu5.fusionsolar.huawei.com';
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  /// Inicia el proceso de autorización OAuth
-  Future<String> startAuthorization({
-    required String clientId,
-    required String redirectUri,
-    String? state,
-    List<String>? scopes,
-  }) async {
-    // Generar estado si no se proporciona
-    state ??= _generateState();
-
-    // Construir URL de autorización
-    final authUrl = Uri.parse('$_authBaseUrl/rest/dp/uidm/oauth2/v1/authorize');
-
-    final queryParams = {
-      'response_type': 'code',
-      'client_id': clientId,
-      'redirect_uri': redirectUri,
-      'state': state,
-    };
-
-    if (scopes != null && scopes.isNotEmpty) {
-      queryParams['scope'] = scopes.join('%20');
-    }
-
-    final finalUrl = authUrl.replace(queryParameters: queryParams);
-
-    // Lanzar URL en el navegador
-    if (await canLaunchUrl(finalUrl)) {
-      await launchUrl(finalUrl, mode: LaunchMode.externalApplication);
-      return state;
-    } else {
-      throw Exception('No se puede abrir el navegador para autorización');
-    }
-  }
-
-  /// Intercambia el código de autorización por tokens de acceso
-  Future<Map<String, dynamic>> exchangeCodeForTokens({
-    required String code,
-    required String clientId,
-    required String clientSecret,
-    required String redirectUri,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_authBaseUrl/rest/dp/uidm/oauth2/v1/token'),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {
-          'grant_type': 'authorization_code',
-          'code': code,
-          'client_id': clientId,
-          'client_secret': clientSecret,
-          'redirect_uri': redirectUri,
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
-
-        // Guardar tokens en la base de datos
-        await _saveTokensToDatabase(data, clientId, clientSecret);
-
-        return data;
-      } else {
-        throw Exception('Error al obtener tokens: ${response.body}');
-      }
-    } catch (e) {
-      throw Exception('Error en el intercambio de tokens: $e');
-    }
-  }
-
+  
   /// Refresca el token de acceso usando el refresh token
   Future<Map<String, dynamic>?> refreshAccessToken() async {
     try {
@@ -283,33 +210,6 @@ class FusionSolarOAuthService {
     return data['fusion_solar_xsrf_token'] as String?;
   }
 
-  /// Guarda los tokens en la base de datos
-  Future<void> _saveTokensToDatabase(
-    Map<String, dynamic> tokenData,
-    String clientId,
-    String clientSecret,
-  ) async {
-    try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
-
-      final expiresIn = tokenData['expires_in'] as int? ?? 3600;
-      final expiresAt = DateTime.now().add(Duration(seconds: expiresIn));
-
-      await _supabase.from('users').upsert({
-        'id': user.id,
-        'fusion_solar_access_token': tokenData['access_token'],
-        'fusion_solar_refresh_token': tokenData['refresh_token'],
-        'fusion_solar_token_expires_at': expiresAt.toIso8601String(),
-        'fusion_solar_client_id': clientId,
-        'fusion_solar_client_secret': clientSecret,
-        'fusion_solar_authorized_at': DateTime.now().toIso8601String(),
-      });
-    } catch (e) {
-      throw Exception('Error guardando tokens: $e');
-    }
-  }
-
   /// Actualiza los tokens en la base de datos
   Future<void> _updateTokensInDatabase(Map<String, dynamic> tokenData) async {
     try {
@@ -329,35 +229,6 @@ class FusionSolarOAuthService {
           .eq('id', user.id);
     } catch (e) {
       throw Exception('Error actualizando tokens: $e');
-    }
-  }
-
-  /// Genera un estado aleatorio para OAuth
-  String _generateState() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(32, (i) => random.nextInt(256));
-    return base64Url.encode(bytes).replaceAll('=', '');
-  }
-
-  /// Limpia la configuración OAuth del usuario
-  Future<void> clearOAuthConfig() async {
-    try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
-
-      await _supabase
-          .from('users')
-          .update({
-            'fusion_solar_access_token': null,
-            'fusion_solar_refresh_token': null,
-            'fusion_solar_token_expires_at': null,
-            'fusion_solar_client_id': null,
-            'fusion_solar_client_secret': null,
-            'fusion_solar_authorized_at': null,
-          })
-          .eq('id', user.id);
-    } catch (e) {
-      throw Exception('Error limpiando configuración OAuth: $e');
     }
   }
 }

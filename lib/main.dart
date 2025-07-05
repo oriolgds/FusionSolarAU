@@ -68,18 +68,38 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   @override
   void initState() {
     super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    // Verificar primero el estado de autenticación
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    // Si hay un usuario autenticado, verificar si la sesión sigue siendo válida
+    if (authProvider.isAuthenticated) {
+      final isSessionValid = await authProvider.isUserSessionValid();
+      if (!isSessionValid) {
+        // Si la sesión no es válida, forzar cierre de sesión
+        await authProvider.signOut();
+      }
+    }
+    
+    // Verificar estado de onboarding
     _checkOnboardingStatus();
+    
     // Escuchar cambios de autenticación
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((event) {
-      // Solo si el usuario se autentica
+      // Si el usuario inicia sesión
       if (event.event == AuthChangeEvent.signedIn) {
         _checkOnboardingStatus();
       }
       // Si el usuario cierra sesión, ocultar onboarding
       if (event.event == AuthChangeEvent.signedOut) {
-        setState(() {
-          _shouldShowOnboarding = false;
-        });
+        if (mounted) {
+          setState(() {
+            _shouldShowOnboarding = false;
+          });
+        }
       }
     });
   }
@@ -99,11 +119,13 @@ class _AppEntryPointState extends State<AppEntryPoint> {
     // Solo verificamos el estado de onboarding si el usuario está autenticado
     if (authProvider.isAuthenticated) {
       final hasSeenOnboarding = await _onboardingService.hasSeenOnboarding();
-      setState(() {
-        _shouldShowOnboarding = !hasSeenOnboarding;
-        _isLoading = false;
-      });
-    } else {
+      if (mounted) {
+        setState(() {
+          _shouldShowOnboarding = !hasSeenOnboarding;
+          _isLoading = false;
+        });
+      }
+    } else if (mounted) {
       setState(() {
         _isLoading = false;
       });

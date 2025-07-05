@@ -4,6 +4,9 @@ import '../../providers/solar_data_provider.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/automation_provider.dart';
 import '../../models/solar_data.dart';
+import '../../services/fusion_solar_oauth_service.dart';
+import 'fusion_solar_not_configured_screen.dart';
+
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -13,18 +16,84 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  final FusionSolarOAuthService _oauthService = FusionSolarOAuthService();
+  bool _isCheckingConfig = true;
+  bool _hasValidConfig = false;
+
   @override
   void initState() {
     super.initState();
-    // Inicializar datos al cargar la pantalla
+    _checkFusionSolarConfig();
+  }
+
+  Future<void> _checkFusionSolarConfig() async {
+    setState(() => _isCheckingConfig = true);
+    
+    try {
+      final hasConfig = await _oauthService.hasValidOAuthConfig();
+      if (hasConfig) {
+        // Solo cargar datos si la configuración es válida
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.read<SolarDataProvider>().refreshData();
+          context.read<DeviceProvider>().refreshDevices();
+        });
+      }
+      
+      if (mounted) {
+        setState(() {
+          _hasValidConfig = hasConfig;
+          _isCheckingConfig = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isCheckingConfig = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al verificar la configuración de Fusion Solar')),
+        );
+      }
+    }
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Recargar la configuración cuando volvemos a esta pantalla
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SolarDataProvider>().refreshData();
-      context.read<DeviceProvider>().refreshDevices();
+      _checkFusionSolarConfig();
     });
+  }
+
+  // This method is called when the user returns to the dashboard from the config screen
+  Future<void> _handleConfigUpdated() async {
+    // Re-check the configuration
+    await _checkFusionSolarConfig();
+    
+    // If we now have a valid config, refresh the data
+    if (_hasValidConfig && mounted) {
+      // Add a small delay to ensure the UI has updated
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Refresh data
+      await context.read<SolarDataProvider>().refreshData();
+      await context.read<DeviceProvider>().refreshDevices();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isCheckingConfig) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (!_hasValidConfig) {
+      return FusionSolarNotConfiguredScreen(
+        onConfigured: _handleConfigUpdated,
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('FusionSolarAU'),
