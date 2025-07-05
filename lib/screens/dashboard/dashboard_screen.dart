@@ -8,7 +8,6 @@ import '../../services/fusion_solar_oauth_service.dart';
 import '../../providers/plant_provider.dart';
 import 'fusion_solar_not_configured_screen.dart';
 
-
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -108,37 +107,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('FusionSolarAU'),
         actions: [
-          Consumer<PlantProvider>(
-            builder: (context, plantProvider, _) {
-              if (plantProvider.plants.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              return DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: plantProvider.selectedStationCode,
-                  items: plantProvider.plants
-                      .map(
-                        (p) => DropdownMenuItem<String>(
-                          value: p.stationCode,
-                          child: Text(
-                            p.stationName,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (code) async {
-                    if (code != null) {
-                      plantProvider.setSelectedStationCode(code);
-                      // Refrescar datos para la nueva planta
-                      await context.read<SolarDataProvider>().refreshData();
-                      await context.read<DeviceProvider>().refreshDevices();
-                    }
-                  },
-                ),
-              );
-            },
-          ),
           Consumer<SolarDataProvider>(
             builder: (context, provider, _) {
               return IconButton(
@@ -222,6 +190,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Selector moderno de plantas
+          _buildModernPlantSelector(),
+
+          const SizedBox(height: 24),
+          
           // Tarjetas principales de energía
           Row(
             children: [
@@ -251,6 +224,273 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _buildStatsSection(context, solarData),
         ],
       ),
+    );
+  }
+
+  Widget _buildModernPlantSelector() {
+    return Consumer<PlantProvider>(
+      builder: (context, plantProvider, _) {
+        if (plantProvider.plants.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        if (plantProvider.plants.length == 1) {
+          // Si solo hay una planta, mostrar una tarjeta informativa
+          final plant = plantProvider.plants.first;
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.solar_power,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        plant.stationName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      if (plant.capacity != null)
+                        Text(
+                          'Capacidad: ${plant.capacity!.toStringAsFixed(1)} kW',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 14,
+                          ),
+                        ),
+                      if (plant.stationAddr != null)
+                        Text(
+                          plant.stationAddr!,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Si hay múltiples plantas, mostrar selector horizontal
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 12),
+              child: Text(
+                'Selecciona tu instalación',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            SizedBox(
+              height: 120,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: plantProvider.plants.length,
+                itemBuilder: (context, index) {
+                  final plant = plantProvider.plants[index];
+                  final isSelected =
+                      plant.stationCode == plantProvider.selectedStationCode;
+
+                  return GestureDetector(
+                    onTap: () async {
+                      if (!isSelected) {
+                        plantProvider.setSelectedStationCode(plant.stationCode);
+                        // Refrescar datos para la nueva planta
+                        await context.read<SolarDataProvider>().refreshData();
+                        await context.read<DeviceProvider>().refreshDevices();
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 280,
+                      margin: EdgeInsets.only(
+                        right: index < plantProvider.plants.length - 1 ? 16 : 0,
+                      ),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: isSelected
+                            ? LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Theme.of(context).colorScheme.primary,
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withOpacity(0.8),
+                                ],
+                              )
+                            : null,
+                        color: isSelected
+                            ? null
+                            : Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected
+                              ? Colors.transparent
+                              : Theme.of(
+                                  context,
+                                ).colorScheme.outline.withOpacity(0.2),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isSelected
+                                ? Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withOpacity(0.3)
+                                : Colors.black.withOpacity(0.05),
+                            blurRadius: isSelected ? 12 : 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? Colors.white.withOpacity(0.2)
+                                      : Theme.of(
+                                          context,
+                                        ).colorScheme.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.solar_power,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Theme.of(context).colorScheme.primary,
+                                  size: 20,
+                                ),
+                              ),
+                              const Spacer(),
+                              if (isSelected)
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            plant.stationName,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : null,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          if (plant.capacity != null)
+                            Text(
+                              '${plant.capacity!.toStringAsFixed(1)} kW',
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white.withOpacity(0.9)
+                                    : Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall?.color,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          const Spacer(),
+                          if (plant.stationAddr != null)
+                            Text(
+                              plant.stationAddr!,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white.withOpacity(0.8)
+                                    : Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.color
+                                          ?.withOpacity(0.7),
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
