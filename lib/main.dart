@@ -72,36 +72,63 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   }
 
   Future<void> _initializeApp() async {
-    // Verificar primero el estado de autenticación
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    
-    // Si hay un usuario autenticado, verificar si la sesión sigue siendo válida
-    if (authProvider.isAuthenticated) {
-      final isSessionValid = await authProvider.isUserSessionValid();
-      if (!isSessionValid) {
-        // Si la sesión no es válida, forzar cierre de sesión
-        await authProvider.signOut();
+    try {
+      // Verificar primero el estado de autenticación
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      // Si hay un usuario autenticado, verificar si la sesión sigue siendo válida
+      if (authProvider.isAuthenticated) {
+        final isSessionValid = await authProvider.isUserSessionValid();
+        if (!isSessionValid) {
+          // Si la sesión no es válida, forzar cierre de sesión
+          await authProvider.signOut();
+          // No mostrar onboarding si el usuario no está autenticado
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _shouldShowOnboarding = false;
+            });
+          }
+          return;
+        }
       }
-    }
-    
-    // Verificar estado de onboarding
-    _checkOnboardingStatus();
-    
-    // Escuchar cambios de autenticación
-    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((event) {
-      // Si el usuario inicia sesión
-      if (event.event == AuthChangeEvent.signedIn) {
-        _checkOnboardingStatus();
-      }
-      // Si el usuario cierra sesión, ocultar onboarding
-      if (event.event == AuthChangeEvent.signedOut) {
+      
+      // Verificar estado de onboarding solo si el usuario está autenticado
+      if (authProvider.isAuthenticated) {
+        await _checkOnboardingStatus();
+      } else {
         if (mounted) {
           setState(() {
+            _isLoading = false;
             _shouldShowOnboarding = false;
           });
         }
       }
-    });
+      
+      // Escuchar cambios de autenticación
+      _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((event) {
+        if (!mounted) return;
+        
+        // Actualizar el estado de autenticación
+        final isAuthenticated = event.event == AuthChangeEvent.signedIn;
+        
+        if (isAuthenticated) {
+          _checkOnboardingStatus();
+        } else {
+          setState(() {
+            _shouldShowOnboarding = false;
+          });
+        }
+      });
+    } catch (e) {
+      debugPrint('Error initializing app: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _shouldShowOnboarding = false;
+        });
+      }
+    }
   }
 
   @override
@@ -111,24 +138,37 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   }
 
   Future<void> _checkOnboardingStatus() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (!mounted) return;
+    
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    // Esperamos a que se complete el estado de autenticación
-    await Future.delayed(Duration.zero);
+      // Esperamos a que se complete el estado de autenticación
+      await Future.delayed(Duration.zero);
 
-    // Solo verificamos el estado de onboarding si el usuario está autenticado
-    if (authProvider.isAuthenticated) {
-      final hasSeenOnboarding = await _onboardingService.hasSeenOnboarding();
-      if (mounted) {
+      // Solo verificamos el estado de onboarding si el usuario está autenticado
+      if (authProvider.isAuthenticated) {
+        final hasSeenOnboarding = await _onboardingService.hasSeenOnboarding();
+        if (mounted) {
+          setState(() {
+            _shouldShowOnboarding = !hasSeenOnboarding;
+            _isLoading = false;
+          });
+        }
+      } else if (mounted) {
         setState(() {
-          _shouldShowOnboarding = !hasSeenOnboarding;
+          _shouldShowOnboarding = false;
           _isLoading = false;
         });
       }
-    } else if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+    } catch (e) {
+      debugPrint('Error checking onboarding status: $e');
+      if (mounted) {
+        setState(() {
+          _shouldShowOnboarding = false;
+          _isLoading = false;
+        });
+      }
     }
   }
 

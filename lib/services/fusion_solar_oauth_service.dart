@@ -174,6 +174,27 @@ class FusionSolarOAuthService {
     return DateTime.now().isBefore(expiry);
   }
 
+  /// Verifica si el usuario tiene alguna configuración de OAuth, aunque sea inválida
+  Future<bool> hasAnyOAuthConfig() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return false;
+      
+      final data = await _supabase
+          .from('users')
+          .select('fusion_solar_xsrf_token, fusion_solar_api_username')
+          .eq('id', user.id)
+          .single();
+          
+      // Verificar si hay algún dato de configuración presente
+      return data['fusion_solar_xsrf_token'] != null || 
+             data['fusion_solar_api_username'] != null;
+    } catch (e) {
+      // Si hay algún error al consultar, asumimos que no hay configuración
+      return false;
+    }
+  }
+
   /// Hace una petición autenticada a la API de FusionSolar
   Future<http.Response> authenticatedRequest(
     String endpoint, {

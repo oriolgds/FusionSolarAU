@@ -31,26 +31,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
     
     try {
       final hasConfig = await _oauthService.hasValidOAuthConfig();
-      if (hasConfig) {
-        // Solo cargar datos si la configuración es válida
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.read<SolarDataProvider>().refreshData();
-          context.read<DeviceProvider>().refreshDevices();
-        });
-      }
       
       if (mounted) {
         setState(() {
           _hasValidConfig = hasConfig;
           _isCheckingConfig = false;
         });
+        
+        // Solo cargar datos si la configuración es válida
+        if (hasConfig) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            context.read<SolarDataProvider>().refreshData();
+            context.read<DeviceProvider>().refreshDevices();
+          });
+        }
       }
     } catch (e) {
+      // Solo mostrar error si hay un problema real, no cuando la configuración no existe
+      final hasConfig = await _oauthService.hasAnyOAuthConfig();
       if (mounted) {
         setState(() => _isCheckingConfig = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al verificar la configuración de Fusion Solar')),
-        );
+        if (hasConfig) {
+          // Mostrar error solo si hay una configuración pero algo falla al verificarla
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error al verificar la configuración de Fusion Solar'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
       }
     }
   }
