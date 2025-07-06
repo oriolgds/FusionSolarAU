@@ -2,40 +2,59 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import '../models/solar_data.dart';
+import '../providers/plant_provider.dart';
 import 'fusion_solar_oauth_service.dart';
 
 class FusionSolarService {
   final FusionSolarOAuthService _oauthService = FusionSolarOAuthService();
   final Random _random = Random();
 
-  Future<SolarData> getCurrentData() async {
+  Future<SolarData> getCurrentData({String? stationCode}) async {
     try {
       // Verificar si hay configuración OAuth válida
       final hasValidConfig = await _oauthService.hasValidOAuthConfig();
 
       if (!hasValidConfig) {
-        // Si no hay configuración válida, usar datos simulados
-        return _getSimulatedData();
+        // Si no hay configuración válida, devolver objeto con valores vacíos
+        return SolarData.noData();
       }
 
-      // Intentar obtener datos reales de FusionSolar usando el nuevo método
+      // Si no se proporciona stationCode, usar datos vacíos
+      if (stationCode == null || stationCode.isEmpty) {
+        print('No station code provided, returning empty data');
+        return SolarData.noData();
+      }
+
+      // Intentar obtener datos reales de FusionSolar usando la API de tiempo real
       final data = await _oauthService.handleApiCall(
-        '/rest/pvms/web/kiosks/v1/station-kiosk-file',
+        '/thirdData/getStationRealKpi',
+        method: 'POST',
+        body: {
+          'stationCodes': stationCode,
+        },
       );
 
-      if (data != null && data['success'] == true) {
-        return _parseRealData(data);
+      if (data != null && data['success'] == true && data['data'] is List) {
+        final List<dynamic> stations = data['data'];
+        if (stations.isNotEmpty) {
+          final stationData = stations.first as Map<String, dynamic>;
+          final dataItemMap = stationData['dataItemMap'] as Map<String, dynamic>;
+          return SolarData.fromFusionSolarApi(dataItemMap);
+        } else {
+          print('No station data returned from API');
+          return SolarData.noData();
+        }
       } else {
         print(
           'Error obteniendo datos reales: ${data?['message'] ?? 'Unknown error'}',
         );
-        // Fallback a datos simulados
-        return _getSimulatedData();
+        // Devolver objeto con valores vacíos en caso de error
+        return SolarData.noData();
       }
     } catch (e) {
       print('Error en getCurrentData: $e');
-      // Fallback a datos simulados en caso de error
-      return _getSimulatedData();
+      // Devolver objeto con valores vacíos en caso de error
+      return SolarData.noData();
     }
   }
 
@@ -47,41 +66,19 @@ class FusionSolarService {
       final hasValidConfig = await _oauthService.hasValidOAuthConfig();
 
       if (!hasValidConfig) {
-        return _getSimulatedHistoricalData(startDate, endDate);
+        // Devolver lista vacía si no hay configuración válida
+        return [];
       }
 
       // Aquí implementarías la llamada real a la API histórica
-      // Por ahora, usar datos simulados
-      return _getSimulatedHistoricalData(startDate, endDate);
+      // Por ahora, devolver lista vacía ya que no tenemos datos reales
+      return [];
     } catch (e) {
       print('Error obteniendo datos históricos: $e');
-      return _getSimulatedHistoricalData(startDate, endDate);
+      return [];
     }
   }
 
-  /// Parsea datos reales de la API de FusionSolar
-  SolarData _parseRealData(Map<String, dynamic> apiData) {
-    // Implementar parsing según la estructura real de la API
-    // Esta es una implementación de ejemplo
-    final now = DateTime.now();
-
-    return SolarData(
-      currentPower: (apiData['currentPower'] ?? 0.0).toDouble(),
-      dailyProduction: (apiData['dailyProduction'] ?? 0.0).toDouble(),
-      monthlyProduction: (apiData['monthlyProduction'] ?? 0.0).toDouble(),
-      totalProduction: (apiData['totalProduction'] ?? 0.0).toDouble(),
-      currentConsumption: (apiData['currentConsumption'] ?? 2.0).toDouble(),
-      dailyConsumption: (apiData['dailyConsumption'] ?? 25.0).toDouble(),
-      currentExcess:
-          (apiData['currentPower'] ?? 0.0).toDouble() -
-          (apiData['currentConsumption'] ?? 2.0).toDouble(),
-      batteryLevel: (apiData['batteryLevel'] ?? 75.0).toDouble(),
-      isProducing: (apiData['currentPower'] ?? 0.0) > 0.1,
-      timestamp: now,
-    );
-  }
-
-  /// Datos simulados como fallback
   SolarData _getSimulatedData() {
     final now = DateTime.now();
     final hour = now.hour;
@@ -109,6 +106,10 @@ class FusionSolarService {
       batteryLevel: 75.0 + _random.nextDouble() * 20.0,
       isProducing: currentPower > 0.1,
       timestamp: now,
+      dailyIncome: _random.nextDouble() * 12.0, // Explícitamente en euros
+      totalIncome: 2100.0 + _random.nextDouble() * 400.0, // Explícitamente en euros
+      dailyOnGridEnergy: _random.nextDouble() * 20.0,
+      healthState: 3, // Saludable por defecto
     );
   }
 
@@ -134,6 +135,10 @@ class FusionSolarService {
           batteryLevel: 50.0 + _random.nextDouble() * 40.0,
           isProducing: false,
           timestamp: currentDate,
+          dailyIncome: _random.nextDouble() * 15.0, // Explícitamente en euros
+          totalIncome: 0,
+          dailyOnGridEnergy: 15.0 + _random.nextDouble() * 20.0,
+          healthState: 3,
         ),
       );
 

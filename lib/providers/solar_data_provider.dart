@@ -10,6 +10,7 @@ class SolarDataProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   Timer? _dataTimer;
+  String? _selectedStationCode;
 
   SolarData? get currentData => _currentData;
   bool get isLoading => _isLoading;
@@ -17,6 +18,14 @@ class SolarDataProvider extends ChangeNotifier {
 
   SolarDataProvider() {
     _initializeData();
+  }
+
+  void setSelectedStationCode(String? stationCode) {
+    if (_selectedStationCode != stationCode) {
+      _selectedStationCode = stationCode;
+      // Refrescar datos cuando cambia la estación seleccionada
+      refreshData();
+    }
   }
 
   Future<void> _initializeData() async {
@@ -36,7 +45,9 @@ class SolarDataProvider extends ChangeNotifier {
       _setLoading(true);
       _setError(null);
 
-      final data = await _fusionSolarService.getCurrentData();
+      final data = await _fusionSolarService.getCurrentData(
+        stationCode: _selectedStationCode,
+      );
       _currentData = data;
       
       _setLoading(false);
@@ -74,8 +85,19 @@ class SolarDataProvider extends ChangeNotifier {
 
   double get todaysSavings {
     if (_currentData == null) return 0;
-    // Calcular ahorro aproximado (precio promedio de electricidad en Australia)
-    const double electricityPrice = 0.30; // AUD por kWh
+    
+    // Si no tenemos datos reales o si son valores por defecto, devolver 0
+    if (_currentData!.dailyProduction <= 0) {
+      return 0;
+    }
+    
+    // Usar el ingreso diario real si está disponible, sino calcular estimado
+    if (_currentData!.dailyIncome != null && _currentData!.dailyIncome! > 0) {
+      return _currentData!.dailyIncome!;
+    }
+    
+    // Calcular ahorro aproximado (precio promedio de electricidad en Europa)
+    const double electricityPrice = 0.25; // EUR por kWh
     return _currentData!.dailyProduction * electricityPrice;
   }
 
