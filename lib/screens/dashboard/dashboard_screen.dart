@@ -7,6 +7,7 @@ import '../../models/solar_data.dart';
 import '../../services/fusion_solar_oauth_service.dart';
 import '../../providers/plant_provider.dart';
 import 'fusion_solar_not_configured_screen.dart';
+import 'package:logger/logger.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,12 +18,14 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final FusionSolarOAuthService _oauthService = FusionSolarOAuthService();
+  final Logger _log = Logger();
   bool _isCheckingConfig = true;
   bool _hasValidConfig = false;
 
   @override
   void initState() {
     super.initState();
+    _log.i('DashboardScreen initialized');
     _checkFusionSolarConfig();
   }
 
@@ -185,6 +188,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildDashboard(BuildContext context, SolarData solarData) {
+    _log.i('Building dashboard with data: dailyProduction=${solarData.dailyProduction}, dailyConsumption=${solarData.dailyConsumption}');
+    _log.d('SolarData details: currentPower=${solarData.currentPower}, dailyIncome=${solarData.dailyIncome}, healthState=${solarData.healthState}');
+    
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -503,6 +509,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildStatsSection(BuildContext context, SolarData solarData) {
+    _log.d('Building stats section with data: ${solarData.toJson()}');
+    
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -631,6 +639,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildStatsGrid(BuildContext context, SolarData solarData) {
     final bool hasRealData = solarData.dailyProduction > 0 || solarData.dailyConsumption > 0;
+    _log.d('Stats grid - hasRealData: $hasRealData, dailyProduction: ${solarData.dailyProduction}, dailyConsumption: ${solarData.dailyConsumption}');
   
     return Column(
       children: [

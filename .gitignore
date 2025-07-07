@@ -64,3 +64,4 @@ google-services.json
 !vscode/extensions.json
 /android/.kotlin
 .env
+*.sql
