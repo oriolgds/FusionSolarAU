@@ -217,8 +217,8 @@ def run_flutter_builds():
         sys.exit(1)
     
     run(["flutter", "pub", "get"])
-    run(["flutter", "build", "apk", "--release"])
     run(["flutter", "build", "appbundle", "--release"])
+    run(["flutter", "build", "apk", "--release"])    
     #run(["flutter", "build", "windows", "--release"])
     run(["flutter", "build", "web", "--release"])
 

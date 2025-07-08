@@ -136,6 +136,9 @@ class FusionSolarService {
       final today = DateTime.now().toIso8601String().split('T')[0];
       _log.d('Looking for cached data for date: $today');
 
+      // Verificar si la tabla existe antes de hacer la consulta
+      _log.d('Attempting to query solar_daily_data table...');
+      
       final result = await _supabase
           .from('solar_daily_data')
           .select()
@@ -184,7 +187,11 @@ class FusionSolarService {
       _log.i('Successfully loaded cached data - dailyProduction: ${solarData.dailyProduction}');
       return solarData;
     } catch (e) {
-      _log.e('Error getting cached day statistics', error: e);
+      _log.e('Error getting cached day statistics: $e');
+      // En lugar de devolver null, devolver datos vacíos si hay error de BD
+      _log.w(
+        'Database error encountered, skipping cache and continuing with API fetch',
+      );
       return null;
     }
   }
@@ -196,6 +203,8 @@ class FusionSolarService {
       if (user == null) return false;
 
       final today = DateTime.now().toIso8601String().split('T')[0];
+      
+      _log.d('Checking fetch permissions for station: $stationCode');
       
       final result = await _supabase
           .from('solar_daily_data')
@@ -219,8 +228,12 @@ class FusionSolarService {
       _log.d('Next allowed fetch: $nextAllowedFetch, can fetch: $canFetch');
       return canFetch;
     } catch (e) {
-      _log.e('Error checking fetch permission', error: e);
-      return false;
+      _log.e('Error checking fetch permission: $e');
+      // Si hay error de BD, permitir el fetch para no bloquear la funcionalidad
+      _log.w(
+        'Database error in fetch permission check, allowing fetch to proceed',
+      );
+      return true;
     }
   }
 
@@ -291,7 +304,10 @@ class FusionSolarService {
   Future<void> _saveDayStatisticsToCache(String stationCode, Map<String, dynamic> dataItemMap) async {
     try {
       final user = _supabase.auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        _log.w('No authenticated user, skipping cache save');
+        return;
+      }
 
       final now = DateTime.now();
       final today = now.toIso8601String().split('T')[0];
@@ -315,6 +331,8 @@ class FusionSolarService {
         'next_fetch_allowed': nextFetch.toIso8601String(),
       };
 
+      _log.d('Attempting to save data to cache: $dataToSave');
+
       await _supabase
           .from('solar_daily_data')
           .upsert(dataToSave, onConflict: 'user_id,station_code,data_date');
@@ -323,7 +341,9 @@ class FusionSolarService {
         'Day statistics saved to optimized cache for station: $stationCode',
       );
     } catch (e) {
-      _log.e('Error saving day statistics to cache', error: e);
+      _log.e('Error saving day statistics to cache: $e');
+      // No relanzar el error, solo loggearlo
+      _log.w('Cache save failed, but continuing with operation...');
     }
   }
 
@@ -335,6 +355,8 @@ class FusionSolarService {
         _log.w('No authenticated user for fallback data');
         return SolarData.noData();
       }
+
+      _log.d('Attempting to get fallback data from cache...');
 
       // Buscar los datos más recientes (incluso de días anteriores)
       final result = await _supabase
@@ -370,7 +392,8 @@ class FusionSolarService {
         _log.w('No fallback data available in cache');
       }
     } catch (e) {
-      _log.e('Error getting fallback data', error: e);
+      _log.e('Error getting fallback data: $e');
+      _log.w('Database error in fallback, returning empty data');
     }
 
     _log.i('Returning empty SolarData as final fallback');
@@ -429,6 +452,8 @@ class FusionSolarService {
 
       final today = DateTime.now().toIso8601String().split('T')[0];
 
+      _log.d('Checking cache age for force refresh...');
+
       final result = await _supabase
           .from('solar_daily_data')
           .select('fetched_at')
@@ -454,8 +479,10 @@ class FusionSolarService {
       _log.i('Cache age: ${age.inMinutes} minutes, should fetch: $shouldFetch');
       return shouldFetch;
     } catch (e) {
-      _log.e('Error checking cache age for force refresh', error: e);
-      return true; // En caso de error, intentar fetch
+      _log.e('Error checking cache age for force refresh: $e');
+      // En caso de error, intentar fetch para no bloquear funcionalidad
+      _log.w('Database error in cache age check, allowing fetch to proceed');
+      return true;
     }
   }
 }

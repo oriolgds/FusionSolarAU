@@ -209,8 +209,19 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
+        String errorMessage = 'Error al iniciar sesión: $e';
+
+        // Personalizar mensaje para error de duplicado
+        if (e.toString().contains('ya está siendo utilizado por otra cuenta')) {
+          errorMessage = e.toString().replaceFirst('Exception: ', '');
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al iniciar sesión: $e')),
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }
@@ -259,15 +270,42 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
     setState(() => _isLoading = true);
     try {
       final xsrfToken = await _oauthService.getCurrentXsrfToken();
-      if (xsrfToken == null) throw Exception('No hay sesión activa');
+      if (xsrfToken == null || xsrfToken.isEmpty) {
+        // Si no hay token, solo actualizar el estado local
+        setState(() => _isLoading = false);
+        if (mounted) {
+          // Limpiar campos de texto
+          _clientIdController.clear();
+          _clientSecretController.clear();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Sesión ya cerrada localmente'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          await _checkCurrentConfig();
+          if (widget.onConfigUpdated != null) {
+            widget.onConfigUpdated!();
+          }
+        }
+        return;
+      }
+      
       await _oauthService.logoutFusionSolar(xsrfToken);
       setState(() => _isLoading = false);
       if (mounted) {
+        // Limpiar campos de texto después del logout exitoso
+        _clientIdController.clear();
+        _clientSecretController.clear();
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sesión FusionSolar cerrada'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('Sesión FusionSolar cerrada correctamente'),
+            backgroundColor: Colors.green,
+          ),
         );
         await _checkCurrentConfig();
-        // Notify parent that configuration was updated
         if (widget.onConfigUpdated != null) {
           widget.onConfigUpdated!();
         }
@@ -275,9 +313,38 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
+        // Limpiar campos de texto incluso si hay error
+        _clientIdController.clear();
+        _clientSecretController.clear();
+
+        // Personalizar el mensaje según el tipo de error
+        String message = 'Sesión cerrada localmente';
+        Color color = Colors.orange;
+
+        if (e.toString().contains('network') ||
+            e.toString().contains('connection')) {
+          message = 'Sin conexión: sesión cerrada localmente';
+        } else if (e.toString().contains('token') ||
+            e.toString().contains('expired')) {
+          message = 'Token expirado: sesión cerrada localmente';
+        } else {
+          message = 'Error: $e';
+          color = Colors.red;
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error cerrando sesión: $e')),
+          SnackBar(
+            content: Text(message),
+            backgroundColor: color,
+            duration: const Duration(seconds: 4),
+          ),
         );
+        
+        // Siempre verificar la configuración y notificar
+        await _checkCurrentConfig();
+        if (widget.onConfigUpdated != null) {
+          widget.onConfigUpdated!();
+        }
       }
     }
   }

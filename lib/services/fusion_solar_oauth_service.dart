@@ -115,15 +115,33 @@ class FusionSolarOAuthService {
         if (xsrfToken == null) {
           throw Exception('No se encontró el XSRF-TOKEN en las cookies');
         }
-        // Guardar en Supabase
+        
+        // Guardar en Supabase con manejo de errores de duplicado
         final user = _supabase.auth.currentUser;
         if (user != null) {
-          await _supabase.from('users').update({
-            'fusion_solar_api_username': username,
-            'fusion_solar_api_password': password,
-            'fusion_solar_xsrf_token': xsrfToken,
-            'fusion_solar_xsrf_token_expires_at': DateTime.now().add(const Duration(minutes: 30)).toIso8601String(),
-          }).eq('id', user.id);
+          try {
+            await _supabase
+                .from('users')
+                .update({
+                  'fusion_solar_api_username': username,
+                  'fusion_solar_api_password': password,
+                  'fusion_solar_xsrf_token': xsrfToken,
+                  'fusion_solar_xsrf_token_expires_at': DateTime.now()
+                      .add(const Duration(minutes: 30))
+                      .toIso8601String(),
+                })
+                .eq('id', user.id);
+          } catch (e) {
+            // Verificar si es un error de duplicado de username
+            if (e.toString().contains('users_fusion_solar_username_unique') ||
+                e.toString().contains('duplicate key value') ||
+                e.toString().contains('already exists')) {
+              throw Exception(
+                'Este nombre de usuario de FusionSolar ya está siendo utilizado por otra cuenta. Por favor, contacta con tu instalador para obtener credenciales únicas.',
+              );
+            }
+            rethrow;
+          }
         }
         return xsrfToken;
       } else {
@@ -136,28 +154,113 @@ class FusionSolarOAuthService {
 
   /// Logout API de FusionSolar
   Future<void> logoutFusionSolar(String xsrfToken) async {
-    final url = Uri.parse('https://eu5.fusionsolar.huawei.com/thirdData/logout');
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'xsrfToken': xsrfToken}),
-    );
-    if (response.statusCode == 200) {
-      final body = jsonDecode(response.body);
-      if (body['success'] == true) {
-        // Limpiar datos en Supabase
-        final user = _supabase.auth.currentUser;
-        if (user != null) {
-          await _supabase.from('users').update({
-            'fusion_solar_xsrf_token': null,
-            'fusion_solar_xsrf_token_expires_at': null,
-          }).eq('id', user.id);
+    try {
+      final url = Uri.parse(
+        'https://eu5.fusionsolar.huawei.com/thirdData/logout',
+      );
+      
+      print(
+        'Attempting logout with XSRF token: ${xsrfToken.substring(0, 10)}...',
+      );
+      
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cookie': 'XSRF-TOKEN=$xsrfToken',
+          'XSRF-TOKEN': xsrfToken,
+        },
+        body: jsonEncode({'xsrfToken': xsrfToken}),
+      );
+      
+      print('Logout response status: ${response.statusCode}');
+      print('Logout response body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        Map<String, dynamic>? body;
+        try {
+          body = jsonDecode(response.body) as Map<String, dynamic>;
+        } catch (e) {
+          print('Error parsing logout response JSON: $e');
+          // Si no se puede parsear la respuesta pero el status es 200,
+          // asumir que el logout fue exitoso
+          body = {'success': true};
         }
+
+        // Verificar si el logout fue exitoso
+        final isSuccess = body['success'] == true;
+        print('Logout success status: $isSuccess');
+
+        if (isSuccess) {
+          // Limpiar datos en Supabase independientemente del resultado de la API
+          await _clearFusionSolarSession();
+        } else {
+          // Incluso si la API dice que falló, limpiar la sesión local
+          // porque el token puede estar ya expirado
+          print(
+            'API logout failed but clearing local session anyway. Message: ${body['message']}',
+          );
+          await _clearFusionSolarSession();
+
+          // Solo lanzar excepción si hay un mensaje específico que indique un error real
+          final message = body['message']?.toString() ?? 'Logout fallido';
+          if (!message.toLowerCase().contains('token') &&
+              !message.toLowerCase().contains('expired') &&
+              !message.toLowerCase().contains('invalid')) {
+            throw Exception(message);
+          }
+        }
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Token ya expirado o inválido, limpiar sesión local
+        print(
+          'Token already expired/invalid (${response.statusCode}), clearing local session',
+        );
+        await _clearFusionSolarSession();
       } else {
-        throw Exception(body['message'] ?? 'Logout fallido');
+        print('Unexpected HTTP status: ${response.statusCode}');
+        // Para otros errores HTTP, aún intentar limpiar la sesión local
+        await _clearFusionSolarSession();
+        throw Exception('Error HTTP ${response.statusCode}: ${response.body}');
       }
-    } else {
-      throw Exception('Error HTTP ${response.statusCode}');
+    } catch (e) {
+      print('Error in logoutFusionSolar: $e');
+
+      // Si es un error de red o conexión, aún limpiar la sesión local
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('HandshakeException') ||
+          e.toString().contains('TimeoutException')) {
+        print('Network error during logout, clearing local session anyway');
+        await _clearFusionSolarSession();
+        return; // No relanzar el error para errores de red
+      }
+
+      rethrow;
+    }
+  }
+
+  /// Limpia la sesión de FusionSolar en Supabase
+  Future<void> _clearFusionSolarSession() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user != null) {
+        await _supabase
+            .from('users')
+            .update({
+              // Limpiar tokens XSRF
+              'fusion_solar_xsrf_token': null,
+              'fusion_solar_xsrf_token_expires_at': null,
+              // Limpiar credenciales de la API para evitar re-login automático
+              'fusion_solar_api_username': null,
+              'fusion_solar_api_password': null,
+            })
+            .eq('id', user.id);
+        print(
+          'Successfully cleared all FusionSolar session data from Supabase',
+        );
+      }
+    } catch (e) {
+      print('Error clearing FusionSolar session data: $e');
+      // No relanzar este error, ya que es solo limpieza local
     }
   }
 

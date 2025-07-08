@@ -15,12 +15,12 @@ If you discover a security vulnerability in this project, please report it to ou
 
 ### How to Report
 
-Please report security issues by emailing [oriolginger2008@gmail.com](mailto:security@fusion-solar-au.com). You should receive a response within 48 hours. If for some reason you do not receive a response, please follow up via email to ensure we received your original message.
+Please report security issues by emailing [oriolginger2008@gmail.com](mailto:oriolginger2008@gmail.com). You should receive a response within 48 hours. If for some reason you do not receive a response, please follow up via email to ensure we received your original message.
 
 ### Security Best Practices
 
 1. **Authentication & Authorization**
-   - All authentication is handled through Firebase Authentication
+   - All authentication is handled through Supabase Authentication
    - Use strong, unique passwords for all accounts
    - Enable two-factor authentication where available
    - Never share access tokens or API keys
@@ -28,14 +28,27 @@ Please report security issues by emailing [oriolginger2008@gmail.com](mailto:sec
 2. **Data Protection**
    - All sensitive data is encrypted in transit using TLS 1.2+
    - Local storage uses secure storage mechanisms (Flutter Secure Storage)
-   - Firebase Security Rules are implemented to protect database access
+   - Supabase Row Level Security (RLS) is implemented to protect database access
+   - Unique constraints prevent data conflicts and security issues
 
-3. **Dependencies**
+3. **Database Security**
+   - Row Level Security (RLS) enabled on all user tables
+   - Users can only access their own data through RLS policies
+   - Unique constraints on critical fields prevent conflicts
+   - Foreign key constraints ensure data integrity
+
+4. **FusionSolar Integration Security**
+   - Each FusionSolar username can only be used by one application user
+   - XSRF tokens are properly managed and isolated per user
+   - Credentials are securely stored and encrypted
+   - Session tokens have proper expiration handling
+
+5. **Dependencies**
    - All dependencies are regularly updated to their latest secure versions
    - Vulnerable dependencies are addressed within 30 days of disclosure
    - Dependencies are audited using `flutter pub outdated` and `dart pub outdated`
 
-4. **Code Security**
+6. **Code Security**
    - Regular code reviews are conducted for all changes
    - Static code analysis is performed using the Dart analyzer
    - Sensitive information is never hardcoded in the source code
@@ -67,7 +80,7 @@ Security updates are released as patch versions (e.g., 1.0.0 → 1.0.1). We reco
 
 ### Contact
 
-For any security-related questions or concerns, please contact [security@fusion-solar-au.com](mailto:security@fusion-solar-au.com).
+For any security-related questions or concerns, please contact [oriolginger2008@gmail.com](mailto:oriolginger2008@gmail.com).
 
 ---
-*Last Updated: June 26, 2025*
+*Last Updated: December 26, 2024*

@@ -59,18 +59,32 @@ class FusionSolarConfigProvider extends ChangeNotifier {
     
     try {
       final token = await _oauthService.getCurrentXsrfToken();
-      if (token != null) {
+      if (token != null && token.isNotEmpty) {
         await _oauthService.logoutFusionSolar(token);
+      } else {
+        // Si no hay token, aún así actualizar el estado local
+        print('No XSRF token found, but updating local state');
       }
+      
       _hasValidConfig = false;
       _setLoading(false);
       notifyListeners();
       return true;
     } catch (e) {
-      _setError('Error cerrando sesión: $e');
-      return false;
-    } finally {
+      print('Logout error: $e');
+
+      // Incluso si hay error, marcar como desconectado localmente
+      _hasValidConfig = false;
+
+      // Solo mostrar error si no es un problema de red o token expirado
+      if (!e.toString().toLowerCase().contains('network') &&
+          !e.toString().toLowerCase().contains('token') &&
+          !e.toString().toLowerCase().contains('expired')) {
+        _setError('Error cerrando sesión: $e');
+      }
+      
       _setLoading(false);
+      return true; // Devolver true porque se limpió la sesión local
     }
   }
 

@@ -111,20 +111,45 @@ class SolarDataProvider extends ChangeNotifier {
         }
       } else {
         _log.w('No data received from service');
-        // Mantener datos existentes si no hay nuevos datos
-        if (_currentData == null) {
-          _currentData = SolarData.noData();
-        }
+        // Si no hay configuración válida, limpiar todos los datos
+        _currentData = SolarData.noData();
+        _lastSuccessfulFetch = null;
       }
       
       _setLoading(false);
       _log.i('Data refresh completed successfully');
-      notifyListeners();
     } catch (e) {
       _log.e('Error during data refresh', error: e);
-      _setError('Error al obtener datos solares: $e');
+      
+      // Mejorar el mensaje de error basado en el tipo de excepción
+      String errorMessage = 'Error al obtener datos solares';
+      if (e.toString().contains('solar_daily_data')) {
+        errorMessage =
+            'Error de configuración de base de datos. Contacta al administrador.';
+      } else if (e.toString().contains('JWT')) {
+        errorMessage = 'Sesión expirada. Por favor, inicia sesión nuevamente.';
+      } else if (e.toString().contains('network') ||
+          e.toString().contains('connection')) {
+        errorMessage = 'Error de conexión. Verifica tu conexión a internet.';
+      } else if (e.toString().contains('No valid OAuth config')) {
+        errorMessage =
+            'Configuración de FusionSolar requerida. Ve a Perfil > Configuración FusionSolar.';
+        // Limpiar datos cuando no hay configuración
+        _currentData = SolarData.noData();
+        _lastSuccessfulFetch = null;
+      }
+
+      _setError(errorMessage);
       _setLoading(false);
+      
+      // Si no hay datos previos, establecer datos vacíos
+      if (_currentData == null) {
+        _currentData = SolarData.noData();
+      }
     }
+
+    // Siempre notificar listeners al final
+    notifyListeners();
   }
 
   /// Fuerza la recarga de datos desde la API, ignorando el caché si es antiguo

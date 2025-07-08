@@ -184,6 +184,8 @@ Para acceder a los datos reales, necesitas:
 2. Configurar la conexión en la sección "Configuración FusionSolar" del perfil
 3. Seleccionar tu instalación si tienes múltiples plantas
 
+**Importante**: Cada usuario de FusionSolar solo puede estar asociado a una cuenta de la aplicación por motivos de seguridad.
+
 ## 🤝 Contribuir
 
 ¡Las contribuciones son bienvenidas! Por favor, lee nuestras [directrices de contribución](CONTRIBUTING.md) antes de enviar un PR.
@@ -206,8 +208,7 @@ Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](L
 
 Si tienes alguna pregunta o necesitas ayuda:
 
-- 📧 Email: soporte@fusionsolarau.com
-- 💬 Discord: [FusionSolarAU Community](https://discord.gg/fusionsolarau)
+- 📧 Email: oriolginger2008@gmail.com
 - 📖 Wiki: [Documentación completa](https://github.com/tu-usuario/FusionSolarAU/wiki)
 
 ## 🙏 Agradecimientos
