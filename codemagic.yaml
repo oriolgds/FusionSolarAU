@@ -1,0 +1,27 @@
+workflows:
+  ios-build:
+    name: Build iOS
+    environment:
+      flutter: stable
+      xcode: latest
+      vars:
+        SUPABASE_URL: En_Codemagic
+        SUPABASE_ANON_KEY: En_Codemagic
+        FIREBASE_OPTIONS_DART: En_Codemagic
+    scripts:
+      # Crea el archivo .env a partir de las variables de entorno
+      - echo "SUPABASE_URL=$SUPABASE_URL" > .env
+      - echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> .env
+      # Crea el archivo firebase_options.dart a partir de la variable de entorno
+      - echo "$FIREBASE_OPTIONS_DART" > lib/firebase_options.dart
+      # Instala dependencias
+      - flutter pub get
+      # Build para iOS (sin firmar)
+      - flutter build ios --release --no-codesign
+    artifacts:
+      - build/ios/iphoneos/*.app
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - tu-email@ejemplo.com

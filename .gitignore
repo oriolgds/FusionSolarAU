@@ -69,3 +69,4 @@ release_config.*
 *.sql
 my_secrets.txt
 *.zip
+lib/firebase_options.dart
