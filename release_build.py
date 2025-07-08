@@ -227,25 +227,21 @@ def gather_artifacts(version: str) -> List[Path]:
     apk = PROJECT_ROOT / "build" / "app" / "outputs" / "flutter-apk" / "app-release.apk"
     aab = PROJECT_ROOT / "build" / "app" / "outputs" / "bundle" / "release" / "app-release.aab"
 
-    windows_dir = PROJECT_ROOT / "build" / "windows" / "runner" / "Release"
     web_dir = PROJECT_ROOT / "build" / "web"
 
-    windows_zip = PROJECT_ROOT / f"windows-release-{version}.zip"
     web_zip = PROJECT_ROOT / f"web-release-{version}.zip"
 
-    if not windows_dir.exists():
-        raise FileNotFoundError(f"Windows build directory not found: {windows_dir}")
+    
     if not web_dir.exists():
         raise FileNotFoundError(f"Web build directory not found: {web_dir}")
 
-    zip_dir(windows_dir, windows_zip)
     zip_dir(web_dir, web_zip)
 
-    for p in (apk, aab, windows_zip, web_zip):
+    for p in (apk, aab, web_zip):
         if not p.exists():
             raise FileNotFoundError(f"Missing artifact: {p}")
 
-    return [apk, aab, windows_zip, web_zip]
+    return [apk, aab, web_zip]
 
 
 # ---------------------------------------------------------------------------
