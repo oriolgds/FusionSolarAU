@@ -64,4 +64,8 @@ google-services.json
 !vscode/extensions.json
 /android/.kotlin
 .env
+# Release automation config
+release_config.*
 *.sql
+my_secrets.txt
+*.zip
