@@ -13,7 +13,7 @@ workflows:
       - echo "SUPABASE_URL=$SUPABASE_URL" > .env
       - echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> .env
       # Crea el archivo firebase_options.dart a partir de la variable de entorno
-      - echo "$FIREBASE_OPTIONS_DART" > lib/firebase_options.dart
+      - printf "%b" "$FIREBASE_OPTIONS_DART" > lib/firebase_options.dart
       # Instala dependencias
       - flutter pub get
       # Build para iOS (sin firmar)
