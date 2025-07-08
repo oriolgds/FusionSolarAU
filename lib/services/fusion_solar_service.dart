@@ -13,9 +13,14 @@ class FusionSolarService {
   final SupabaseClient _supabase = Supabase.instance.client;
   final Logger _log = Logger();
 
-  Future<SolarData> getCurrentData({String? stationCode}) async {
+  Future<SolarData> getCurrentData({
+    String? stationCode,
+    bool forceRefresh = false,
+  }) async {
     try {
-      _log.i('=== Starting getCurrentData for station: $stationCode ===');
+      _log.i(
+        '=== Starting getCurrentData for station: $stationCode (forceRefresh: $forceRefresh) ===',
+      );
       
       // Verificar si hay configuración OAuth válida
       final hasValidConfig = await _oauthService.hasValidOAuthConfig();
@@ -31,20 +36,43 @@ class FusionSolarService {
         return SolarData.noData();
       }
 
-      // Primero intentar obtener datos del caché
-      _log.d('Checking cached data for station: $stationCode');
-      final cachedData = await _getCachedDayStatistics(stationCode);
-      if (cachedData != null) {
-        _log.i('Using cached day statistics for station: $stationCode');
-        _log.d('Cached data - dailyProduction: ${cachedData.dailyProduction}, dailyConsumption: ${cachedData.dailyConsumption}');
-        return cachedData;
+      // Si es force refresh, verificar si el caché es antiguo antes de decidir
+      if (forceRefresh) {
+        _log.d('Force refresh requested - checking cache age');
+        final shouldFetchFromApi = await _shouldFetchFromApiOnForceRefresh(
+          stationCode,
+        );
+        if (!shouldFetchFromApi) {
+          _log.i(
+            'Cache is recent (< 5 min), using cached data even with force refresh',
+          );
+          final cachedData = await _getCachedDayStatistics(stationCode);
+          if (cachedData != null) {
+            return cachedData;
+          }
+        }
+      }
+
+      // Primero intentar obtener datos del caché (solo si no es force refresh o caché es muy antiguo)
+      if (!forceRefresh) {
+        _log.d('Checking cached data for station: $stationCode');
+        final cachedData = await _getCachedDayStatistics(stationCode);
+        if (cachedData != null) {
+          _log.i('Using cached day statistics for station: $stationCode');
+          _log.d(
+            'Cached data - dailyProduction: ${cachedData.dailyProduction}, dailyConsumption: ${cachedData.dailyConsumption}',
+          );
+          return cachedData;
+        }
       }
 
       // Si no hay datos en caché o están desactualizados, verificar si podemos hacer fetch
-      _log.d('No valid cached data found, checking if can fetch from API');
+      _log.d(
+        'No valid cached data found or force refresh, checking if can fetch from API',
+      );
       final canFetch = await _canFetchDayStatistics(stationCode);
       _log.i('Can fetch from API: $canFetch');
-      if (!canFetch) {
+      if (!canFetch && !forceRefresh) {
         _log.w('Cannot fetch day statistics yet, using fallback data');
         final fallbackData = await _getFallbackData(stationCode);
         _log.d('Fallback data - dailyProduction: ${fallbackData.dailyProduction}, dailyConsumption: ${fallbackData.dailyConsumption}');
@@ -109,7 +137,7 @@ class FusionSolarService {
       _log.d('Looking for cached data for date: $today');
 
       final result = await _supabase
-          .from('day_statistics')
+          .from('solar_daily_data')
           .select()
           .eq('user_id', user.id)
           .eq('station_code', stationCode)
@@ -123,7 +151,7 @@ class FusionSolarService {
 
       _log.d('Found cached data: $result');
 
-      // Verificar si los datos no son demasiado antiguos (máximo 6 minutos)
+      // Verificar si los datos no son demasiado antiguos (máximo 10 minutos para mejor UX)
       final fetchedAt = DateTime.tryParse(result['fetched_at']);
       if (fetchedAt == null) {
         _log.w('Invalid fetched_at timestamp in cached data');
@@ -133,12 +161,26 @@ class FusionSolarService {
       final age = DateTime.now().difference(fetchedAt);
       _log.d('Cached data age: ${age.inMinutes} minutes');
       
-      if (age > const Duration(minutes: 6)) {
-        _log.d('Cached data too old (${age.inMinutes} min), ignoring');
-        return null;
+      // Permitir datos más antiguos, pero marcarlos como tales
+      if (age > const Duration(minutes: 30)) {
+        _log.d(
+          'Cached data very old (${age.inMinutes} min), but still using it',
+        );
       }
 
-      final solarData = SolarData.fromFusionSolarApi(result);
+      // Convertir usando el nuevo mapeo de campos
+      final mappedData = {
+        'day_power': result['day_power'],
+        'month_power': result['month_power'],
+        'total_power': result['total_power'],
+        'day_use_energy': result['day_use_energy'],
+        'day_on_grid_energy': result['day_on_grid_energy'],
+        'day_income': result['day_income'],
+        'total_income': result['total_income'],
+        'real_health_state': result['health_state'],
+      };
+
+      final solarData = SolarData.fromFusionSolarApi(mappedData);
       _log.i('Successfully loaded cached data - dailyProduction: ${solarData.dailyProduction}');
       return solarData;
     } catch (e) {
@@ -147,41 +189,30 @@ class FusionSolarService {
     }
   }
 
-  /// Verifica si se puede hacer fetch de estadísticas (respeta límite de 5 minutos)
-  /// Con excepción para primera consulta de una estación nueva
+  /// Verifica si se puede hacer fetch de estadísticas
   Future<bool> _canFetchDayStatistics(String stationCode) async {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) return false;
 
-      final meta = await _supabase
-          .from('day_statistics_fetch_meta')
-          .select('next_allowed_fetch, last_fetch_at')
-          .eq('user_id', user.id)
-          .eq('station_code', stationCode)
-          .maybeSingle();
-
-      if (meta == null) {
-        _log.i('First time fetching for station $stationCode - allowing fetch');
-        return true; // Primera vez para esta estación
-      }
-
-      // Verificar si hay datos cacheados para hoy
       final today = DateTime.now().toIso8601String().split('T')[0];
-      final cached = await _supabase
-          .from('day_statistics')
-          .select('id')
+      
+      final result = await _supabase
+          .from('solar_daily_data')
+          .select('next_fetch_allowed, fetched_at')
           .eq('user_id', user.id)
           .eq('station_code', stationCode)
           .eq('data_date', today)
           .maybeSingle();
 
-      if (cached == null) {
-        _log.i('No cached data for today for station $stationCode - allowing fetch');
-        return true; // No hay datos para hoy, permitir fetch
+      if (result == null) {
+        _log.i(
+          'First time fetching for station $stationCode today - allowing fetch',
+        );
+        return true;
       }
 
-      final nextAllowedFetch = DateTime.tryParse(meta['next_allowed_fetch']);
+      final nextAllowedFetch = DateTime.tryParse(result['next_fetch_allowed']);
       if (nextAllowedFetch == null) return true;
 
       final canFetch = DateTime.now().isAfter(nextAllowedFetch);
@@ -189,7 +220,7 @@ class FusionSolarService {
       return canFetch;
     } catch (e) {
       _log.e('Error checking fetch permission', error: e);
-      return false; // En caso de error, no permitir fetch para evitar exceder límites
+      return false;
     }
   }
 
@@ -256,7 +287,7 @@ class FusionSolarService {
     }
   }
 
-  /// Guarda las estadísticas del día en el caché de Supabase
+  /// Guarda las estadísticas del día en el caché optimizado
   Future<void> _saveDayStatisticsToCache(String stationCode, Map<String, dynamic> dataItemMap) async {
     try {
       final user = _supabase.auth.currentUser;
@@ -264,10 +295,12 @@ class FusionSolarService {
 
       final now = DateTime.now();
       final today = now.toIso8601String().split('T')[0];
+      final nextFetch = now.add(const Duration(minutes: 5));
 
-      await _supabase.from('day_statistics').upsert({
+      final dataToSave = {
         'user_id': user.id,
         'station_code': stationCode,
+        'data_date': today,
         'day_power': double.tryParse(dataItemMap['day_power']?.toString() ?? '0') ?? 0.0,
         'month_power': double.tryParse(dataItemMap['month_power']?.toString() ?? '0') ?? 0.0,
         'total_power': double.tryParse(dataItemMap['total_power']?.toString() ?? '0') ?? 0.0,
@@ -275,43 +308,27 @@ class FusionSolarService {
         'day_on_grid_energy': double.tryParse(dataItemMap['day_on_grid_energy']?.toString() ?? '0') ?? 0.0,
         'day_income': double.tryParse(dataItemMap['day_income']?.toString() ?? '0') ?? 0.0,
         'total_income': double.tryParse(dataItemMap['total_income']?.toString() ?? '0') ?? 0.0,
-        'real_health_state': int.tryParse(dataItemMap['real_health_state']?.toString() ?? '3') ?? 3,
+        'health_state':
+            int.tryParse(dataItemMap['real_health_state']?.toString() ?? '3') ??
+            3,
         'fetched_at': now.toIso8601String(),
-        'data_date': today,
-      }, onConflict: 'user_id,station_code,data_date');
+        'next_fetch_allowed': nextFetch.toIso8601String(),
+      };
 
-      _log.i('Day statistics saved to cache for station: $stationCode');
+      await _supabase
+          .from('solar_daily_data')
+          .upsert(dataToSave, onConflict: 'user_id,station_code,data_date');
+
+      _log.i(
+        'Day statistics saved to optimized cache for station: $stationCode',
+      );
     } catch (e) {
       _log.e('Error saving day statistics to cache', error: e);
     }
   }
 
-  /// Actualiza los metadatos de fetch
-  Future<void> _updateFetchMetadata(String stationCode) async {
-    try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
-
-      final now = DateTime.now();
-      final nextAllowedFetch = now.add(const Duration(minutes: 5));
-
-      await _supabase.from('day_statistics_fetch_meta').upsert({
-        'user_id': user.id,
-        'station_code': stationCode,
-        'last_fetch_at': now.toIso8601String(),
-        'next_allowed_fetch': nextAllowedFetch.toIso8601String(),
-        'fetch_count': 1, // Podrías incrementar esto si quieres llevar un contador
-      }, onConflict: 'user_id,station_code');
-
-      _log.i('Fetch metadata updated for station: $stationCode. Next fetch allowed at: $nextAllowedFetch');
-    } catch (e) {
-      _log.e('Error updating fetch metadata', error: e);
-    }
-  }
-
-  /// Obtiene datos de fallback si no se pueden obtener datos reales
+  /// Obtiene datos de fallback mejorado
   Future<SolarData> _getFallbackData(String stationCode) async {
-    // Intentar obtener los últimos datos disponibles del caché, aunque sean antiguos
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) {
@@ -319,19 +336,34 @@ class FusionSolarService {
         return SolarData.noData();
       }
 
+      // Buscar los datos más recientes (incluso de días anteriores)
       final result = await _supabase
-          .from('day_statistics')
+          .from('solar_daily_data')
           .select()
           .eq('user_id', user.id)
           .eq('station_code', stationCode)
+          .order('data_date', ascending: false)
           .order('fetched_at', ascending: false)
           .limit(1)
           .maybeSingle();
 
       if (result != null) {
-        _log.i('Using fallback cached data for station: $stationCode');
-        _log.d('Fallback data from: ${result['fetched_at']}');
-        final solarData = SolarData.fromFusionSolarApi(result);
+        _log.i(
+          'Using fallback cached data for station: $stationCode from date: ${result['data_date']}',
+        );
+
+        final mappedData = {
+          'day_power': result['day_power'],
+          'month_power': result['month_power'],
+          'total_power': result['total_power'],
+          'day_use_energy': result['day_use_energy'],
+          'day_on_grid_energy': result['day_on_grid_energy'],
+          'day_income': result['day_income'],
+          'total_income': result['total_income'],
+          'real_health_state': result['health_state'],
+        };
+
+        final solarData = SolarData.fromFusionSolarApi(mappedData);
         _log.d('Fallback data - dailyProduction: ${solarData.dailyProduction}');
         return solarData;
       } else {
@@ -343,6 +375,28 @@ class FusionSolarService {
 
     _log.i('Returning empty SolarData as final fallback');
     return SolarData.noData();
+  }
+
+  /// Actualiza metadatos de fetch para rate limiting
+  Future<void> _updateFetchMetadata(String stationCode) async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+
+      final now = DateTime.now();
+      final nextFetch = now.add(const Duration(minutes: 5));
+
+      await _supabase
+          .from('solar_daily_data')
+          .update({'next_fetch_allowed': nextFetch.toIso8601String()})
+          .eq('user_id', user.id)
+          .eq('station_code', stationCode)
+          .eq('data_date', now.toIso8601String().split('T')[0]);
+
+      _log.d('Updated fetch metadata for station: $stationCode');
+    } catch (e) {
+      _log.e('Error updating fetch metadata', error: e);
+    }
   }
 
   Future<List<SolarData>> getHistoricalData({
@@ -361,8 +415,47 @@ class FusionSolarService {
       // Por ahora, devolver lista vacía ya que no tenemos datos reales
       return [];
     } catch (e) {
-      print('Error obteniendo datos históricos: $e');
+      _log.e('Error obteniendo datos históricos', error: e);
       return [];
+    }
+  }
+
+  /// Verifica si debe hacer fetch desde la API en un force refresh
+  /// Solo hace fetch si los datos en caché tienen más de 5 minutos
+  Future<bool> _shouldFetchFromApiOnForceRefresh(String stationCode) async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return true;
+
+      final today = DateTime.now().toIso8601String().split('T')[0];
+
+      final result = await _supabase
+          .from('solar_daily_data')
+          .select('fetched_at')
+          .eq('user_id', user.id)
+          .eq('station_code', stationCode)
+          .eq('data_date', today)
+          .maybeSingle();
+
+      if (result == null) {
+        _log.i('No cached data found - should fetch from API');
+        return true;
+      }
+
+      final fetchedAt = DateTime.tryParse(result['fetched_at']);
+      if (fetchedAt == null) {
+        _log.w('Invalid fetched_at timestamp - should fetch from API');
+        return true;
+      }
+
+      final age = DateTime.now().difference(fetchedAt);
+      final shouldFetch = age > const Duration(minutes: 5);
+
+      _log.i('Cache age: ${age.inMinutes} minutes, should fetch: $shouldFetch');
+      return shouldFetch;
+    } catch (e) {
+      _log.e('Error checking cache age for force refresh', error: e);
+      return true; // En caso de error, intentar fetch
     }
   }
 }

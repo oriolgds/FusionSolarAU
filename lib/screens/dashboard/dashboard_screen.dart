@@ -44,8 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // Solo cargar datos si la configuración es válida
         if (hasConfig) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            context.read<SolarDataProvider>().refreshData();
-            context.read<DeviceProvider>().refreshDevices();
+            _setupDataSync();
           });
         }
       }
@@ -65,6 +64,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
     }
+  }
+
+  void _setupDataSync() {
+    final plantProvider = context.read<PlantProvider>();
+    final solarProvider = context.read<SolarDataProvider>();
+
+    // Si ya hay plantas cargadas, configurar inmediatamente
+    if (plantProvider.plants.isNotEmpty) {
+      final selectedCode =
+          plantProvider.selectedStationCode ??
+          plantProvider.plants.first.stationCode;
+      solarProvider.setSelectedStationCode(selectedCode);
+      if (plantProvider.selectedStationCode == null) {
+        plantProvider.setSelectedStationCode(selectedCode);
+      }
+    }
+
+    // Refrescar dispositivos
+    context.read<DeviceProvider>().refreshDevices();
   }
   
   @override
@@ -86,9 +104,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // Add a small delay to ensure the UI has updated
       await Future.delayed(const Duration(milliseconds: 500));
       
-      // Refresh data
-      await context.read<SolarDataProvider>().refreshData();
-      await context.read<DeviceProvider>().refreshDevices();
+      // Setup data sync
+      _setupDataSync();
     }
   }
 
@@ -121,7 +138,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       )
                     : const Icon(Icons.refresh),
                 onPressed: provider.isLoading ? null : () {
-                  provider.refreshData();
+                        provider.forceRefreshData();
                   context.read<DeviceProvider>().refreshDevices();
                 },
               );
@@ -131,7 +148,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          await context.read<SolarDataProvider>().refreshData();
+          await context.read<SolarDataProvider>().forceRefreshData();
           await context.read<DeviceProvider>().refreshDevices();
         },
         child: Consumer<SolarDataProvider>(
@@ -244,7 +261,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // Si solo hay una planta, notificar al provider de datos solares
           WidgetsBinding.instance.addPostFrameCallback((_) {
             final solarProvider = context.read<SolarDataProvider>();
-            solarProvider.setSelectedStationCode(plantProvider.plants.first.stationCode);
+            final plantCode = plantProvider.plants.first.stationCode;
+            solarProvider.setSelectedStationCode(plantCode);
+
+            // Asegurar que el plant provider también tenga seleccionada la planta
+            if (plantProvider.selectedStationCode != plantCode) {
+              plantProvider.setSelectedStationCode(plantCode);
+            }
           });
           
           // Si solo hay una planta, mostrar una tarjeta informativa
@@ -362,11 +385,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   return GestureDetector(
                     onTap: () async {
                       if (!isSelected) {
+                        // Primero establecer en plant provider
                         plantProvider.setSelectedStationCode(plant.stationCode);
-                        // Notificar al provider de datos solares
-                        context.read<SolarDataProvider>().setSelectedStationCode(plant.stationCode);
-                        // Refrescar datos para la nueva planta
-                        await context.read<SolarDataProvider>().refreshData();
+                        
+                        // Luego notificar al provider de datos solares
+                        final solarProvider = context.read<SolarDataProvider>();
+                        solarProvider.setSelectedStationCode(plant.stationCode);
+
+                        // Refrescar dispositivos para la nueva planta
                         await context.read<DeviceProvider>().refreshDevices();
                       }
                     },

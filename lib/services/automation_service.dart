@@ -143,22 +143,26 @@ class AutomationService {
     AutomationCondition condition,
     SolarData solarData,
   ) {
-    final minimumExcess = condition.parameters['minimumExcess'] ?? 0.0;
-    return solarData.currentExcess >= minimumExcess;
+    final minimumExcess = (condition.parameters['minimumExcess'] ?? 0.0)
+        .toDouble();
+    final currentExcess = solarData.currentExcess;
+    return currentExcess >= minimumExcess;
   }
 
   bool evaluateLowProductionCondition(
     AutomationCondition condition,
     SolarData solarData,
   ) {
-    final maxProduction = condition.parameters['maxProduction'] ?? 0.0;
-    return solarData.currentPower <= maxProduction;
+    final maxProduction = (condition.parameters['maxProduction'] ?? 0.0)
+        .toDouble();
+    final currentPower = solarData.currentPower;
+    return currentPower <= maxProduction;
   }
 
   bool evaluateTimeOfDayCondition(AutomationCondition condition) {
     final now = DateTime.now();
-    final targetHour = condition.parameters['hour'] ?? 0;
-    final targetMinute = condition.parameters['minute'] ?? 0;
+    final targetHour = (condition.parameters['hour'] ?? 0) as int;
+    final targetMinute = (condition.parameters['minute'] ?? 0) as int;
     
     return now.hour == targetHour && now.minute == targetMinute;
   }
@@ -167,16 +171,18 @@ class AutomationService {
     AutomationCondition condition,
     SolarData solarData,
   ) {
-    final targetLevel = condition.parameters['batteryLevel'] ?? 0.0;
-    final operator = condition.parameters['operator'] ?? 'gte'; // greater than or equal
+    final targetLevel = (condition.parameters['batteryLevel'] ?? 0.0)
+        .toDouble();
+    final operator = condition.parameters['operator'] ?? 'gte';
+    final currentLevel = solarData.batteryLevel;
     
     switch (operator) {
       case 'gte':
-        return solarData.batteryLevel >= targetLevel;
+        return currentLevel >= targetLevel;
       case 'lte':
-        return solarData.batteryLevel <= targetLevel;
+        return currentLevel <= targetLevel;
       case 'eq':
-        return solarData.batteryLevel == targetLevel;
+        return (currentLevel - targetLevel).abs() < 0.1; // Tolerancia del 0.1%
       default:
         return false;
     }

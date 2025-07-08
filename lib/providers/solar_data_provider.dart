@@ -21,7 +21,7 @@ class SolarDataProvider extends ChangeNotifier {
 
   SolarDataProvider() {
     _log.i('SolarDataProvider initialized');
-    _initializeData();
+    // No inicializar datos automáticamente, esperar a que se establezca el código de estación
   }
 
   void setSelectedStationCode(String? stationCode) {
@@ -32,13 +32,20 @@ class SolarDataProvider extends ChangeNotifier {
       // Resetear el timestamp del último fetch para permitir fetch inmediato
       _lastSuccessfulFetch = null;
       
-      // Refrescar datos inmediatamente cuando cambia la estación seleccionada
-      refreshData(forceRefresh: true);
+      // Solo inicializar datos si tenemos un código válido
+      if (stationCode != null && stationCode.isNotEmpty) {
+        _initializeDataForStation();
+      } else {
+        // Si no hay código, limpiar datos y parar el timer
+        _currentData = null;
+        _dataTimer?.cancel();
+        notifyListeners();
+      }
     }
   }
 
-  Future<void> _initializeData() async {
-    _log.i('Initializing solar data...');
+  Future<void> _initializeDataForStation() async {
+    _log.i('Initializing solar data for station: $_selectedStationCode');
     await refreshData();
     _startDataTimer();
   }
@@ -47,32 +54,46 @@ class SolarDataProvider extends ChangeNotifier {
     _dataTimer?.cancel();
     // Cambiar a 5 minutos para respetar el límite de la API
     _dataTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
-      _log.d('Timer triggered - refreshing data automatically');
-      refreshData();
+      if (_selectedStationCode != null && _selectedStationCode!.isNotEmpty) {
+        _log.d('Timer triggered - refreshing data automatically');
+        refreshData();
+      }
     });
     _log.i('Data timer started with 5-minute intervals');
   }
 
   Future<void> refreshData({bool forceRefresh = false}) async {
     try {
-      _log.i('Starting data refresh for station: $_selectedStationCode');
+      _log.i(
+        'Starting data refresh for station: $_selectedStationCode (forceRefresh: $forceRefresh)',
+      );
       _setLoading(true);
       _setError(null);
 
-      // Si no es un refresh forzado, verificar si es muy pronto desde el último fetch exitoso
+      // Si no hay estación seleccionada, no hacer nada
+      if (_selectedStationCode == null || _selectedStationCode!.isEmpty) {
+        _log.w('No station code available for refresh');
+        _setLoading(false);
+        return;
+      }
+
+      // Si no es un refresh forzado, verificar límites de tiempo más flexibles
       if (!forceRefresh && _lastSuccessfulFetch != null) {
         final timeSinceLastFetch = DateTime.now().difference(_lastSuccessfulFetch!);
         _log.d('Time since last fetch: ${timeSinceLastFetch.inMinutes} minutes');
-        if (timeSinceLastFetch < const Duration(minutes: 5)) {
+        if (timeSinceLastFetch < const Duration(minutes: 3)) {
           _log.w('Skipping fetch - too soon since last successful fetch');
           _setLoading(false);
-          return; // No hacer fetch si es muy pronto
+          return;
         }
       }
 
-      _log.d('Calling FusionSolarService.getCurrentData()');
+      _log.d(
+        'Calling FusionSolarService.getCurrentData() with forceRefresh: $forceRefresh',
+      );
       final data = await _fusionSolarService.getCurrentData(
         stationCode: _selectedStationCode,
+        forceRefresh: forceRefresh,
       );
       
       _log.i('Received data from service: ${data != null ? 'SUCCESS' : 'NULL'}');
@@ -80,14 +101,20 @@ class SolarDataProvider extends ChangeNotifier {
         _log.d('Data details - currentPower: ${data.currentPower}, dailyProduction: ${data.dailyProduction}, dailyConsumption: ${data.dailyConsumption}');
         _log.d('Income data - dailyIncome: ${data.dailyIncome}, totalIncome: ${data.totalIncome}');
         _log.d('Health state: ${data.healthState} (${data.healthStateText})');
-      }
-      
-      _currentData = data;
-      
-      // Solo actualizar el timestamp si obtuvimos datos reales
-      if (data != null && (data.dailyProduction > 0 || data.dailyConsumption > 0 || data.dailyIncome != null && data.dailyIncome! > 0)) {
-        _lastSuccessfulFetch = DateTime.now();
-        _log.i('Updated last successful fetch timestamp');
+        
+        _currentData = data;
+        
+        // Solo actualizar timestamp si obtuvimos datos válidos
+        if (_isValidData(data)) {
+          _lastSuccessfulFetch = DateTime.now();
+          _log.i('Updated last successful fetch timestamp');
+        }
+      } else {
+        _log.w('No data received from service');
+        // Mantener datos existentes si no hay nuevos datos
+        if (_currentData == null) {
+          _currentData = SolarData.noData();
+        }
       }
       
       _setLoading(false);
@@ -98,6 +125,20 @@ class SolarDataProvider extends ChangeNotifier {
       _setError('Error al obtener datos solares: $e');
       _setLoading(false);
     }
+  }
+
+  /// Fuerza la recarga de datos desde la API, ignorando el caché si es antiguo
+  Future<void> forceRefreshData() async {
+    _log.i('Force refreshing data for station: $_selectedStationCode');
+    await refreshData(forceRefresh: true);
+  }
+
+  /// Verifica si los datos son válidos y no son solo valores por defecto
+  bool _isValidData(SolarData data) {
+    return data.dailyProduction > 0 ||
+        data.dailyConsumption > 0 ||
+        (data.dailyIncome != null && data.dailyIncome! > 0) ||
+        (data.totalIncome != null && data.totalIncome! > 0);
   }
 
   Future<List<SolarData>> getHistoricalData({

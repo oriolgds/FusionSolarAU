@@ -96,6 +96,13 @@ class PlantProvider extends ChangeNotifier {
       // Seleccionar la primera por defecto si no hay selección previa
       if (_plants.isNotEmpty && _selectedPlant == null) {
         _selectedPlant = _plants.first;
+        _log.i(
+          'Auto-selected first plant: ${_selectedPlant!.stationName} (${_selectedPlant!.stationCode})',
+        );
+        // Notificar después de establecer la selección
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          notifyListeners();
+        });
       }
     } catch (e) {
       debugPrint('Error cargando plantas: $e');
@@ -154,7 +161,10 @@ class PlantProvider extends ChangeNotifier {
 
   void setSelectedStationCode(String code) {
     // Si la lista está vacía no podemos seleccionar ninguna estación
-    if (_plants.isEmpty) return;
+    if (_plants.isEmpty) {
+      _log.w('Cannot select station code - no plants available');
+      return;
+    }
 
     // Busca la estación por su código; si no existe, selecciona la primera
     final match = _plants.firstWhere(
@@ -162,8 +172,11 @@ class PlantProvider extends ChangeNotifier {
       orElse: () => _plants.first,
     );
 
-    _selectedPlant = match;
-    notifyListeners();
+    if (_selectedPlant?.stationCode != match.stationCode) {
+      _selectedPlant = match;
+      _log.i('Selected plant: ${match.stationName} (${match.stationCode})');
+      notifyListeners();
+    }
   }
 
   void _setLoading(bool val) {
