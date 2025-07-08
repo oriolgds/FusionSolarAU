@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-ios:
-    runs-on: macos-latest
+    runs-on: macos-14  # Usar macOS 14 que incluye Xcode 15+
 
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -20,8 +20,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'  # Usar una versión específica compatible
+          channel: 'stable'
 
       - name: Create .env file
         run: |
@@ -34,6 +40,9 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Clean build
+        run: flutter clean
 
       - name: Build iOS (no codesign)
         run: flutter build ios --release --no-codesign
