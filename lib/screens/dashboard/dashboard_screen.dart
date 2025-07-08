@@ -4,6 +4,10 @@ import '../../providers/solar_data_provider.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/automation_provider.dart';
 import '../../models/solar_data.dart';
+import '../../services/fusion_solar_oauth_service.dart';
+import '../../providers/plant_provider.dart';
+import 'fusion_solar_not_configured_screen.dart';
+import 'package:logger/logger.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -13,18 +17,95 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  final FusionSolarOAuthService _oauthService = FusionSolarOAuthService();
+  final Logger _log = Logger();
+  bool _isCheckingConfig = true;
+  bool _hasValidConfig = false;
+
   @override
   void initState() {
     super.initState();
-    // Inicializar datos al cargar la pantalla
+    _log.i('DashboardScreen initialized');
+    _checkFusionSolarConfig();
+  }
+
+  Future<void> _checkFusionSolarConfig() async {
+    setState(() => _isCheckingConfig = true);
+    
+    try {
+      final hasConfig = await _oauthService.hasValidOAuthConfig();
+      
+      if (mounted) {
+        setState(() {
+          _hasValidConfig = hasConfig;
+          _isCheckingConfig = false;
+        });
+        
+        // Solo cargar datos si la configuración es válida
+        if (hasConfig) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            context.read<SolarDataProvider>().refreshData();
+            context.read<DeviceProvider>().refreshDevices();
+          });
+        }
+      }
+    } catch (e) {
+      // Solo mostrar error si hay un problema real, no cuando la configuración no existe
+      final hasConfig = await _oauthService.hasAnyOAuthConfig();
+      if (mounted) {
+        setState(() => _isCheckingConfig = false);
+        if (hasConfig) {
+          // Mostrar error solo si hay una configuración pero algo falla al verificarla
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error al verificar la configuración de Fusion Solar'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    }
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Recargar la configuración cuando volvemos a esta pantalla
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SolarDataProvider>().refreshData();
-      context.read<DeviceProvider>().refreshDevices();
+      _checkFusionSolarConfig();
     });
+  }
+
+  // This method is called when the user returns to the dashboard from the config screen
+  Future<void> _handleConfigUpdated() async {
+    // Re-check the configuration
+    await _checkFusionSolarConfig();
+    
+    // If we now have a valid config, refresh the data
+    if (_hasValidConfig && mounted) {
+      // Add a small delay to ensure the UI has updated
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Refresh data
+      await context.read<SolarDataProvider>().refreshData();
+      await context.read<DeviceProvider>().refreshDevices();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isCheckingConfig) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (!_hasValidConfig) {
+      return FusionSolarNotConfiguredScreen(
+        onConfigured: _handleConfigUpdated,
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('FusionSolarAU'),
@@ -107,35 +188,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildDashboard(BuildContext context, SolarData solarData) {
+    _log.i('Building dashboard with data: dailyProduction=${solarData.dailyProduction}, dailyConsumption=${solarData.dailyConsumption}');
+    _log.d('SolarData details: currentPower=${solarData.currentPower}, dailyIncome=${solarData.dailyIncome}, healthState=${solarData.healthState}');
+    
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Selector moderno de plantas
+          _buildModernPlantSelector(),
+
+          const SizedBox(height: 28),
+          
           // Tarjetas principales de energía
           Row(
             children: [
               Expanded(
                 child: _buildSolarProductionCard(solarData),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 20),
               Expanded(
                 child: _buildEnergyConsumptionCard(solarData),
               ),
             ],
           ),
           
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           
           // Estado de automatización
           _buildAutomationStatusCard(),
           
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           
           // Acciones rápidas
           _buildQuickActionsCard(),
           
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           
           // Estadísticas adicionales
           _buildStatsSection(context, solarData),
@@ -144,131 +233,561 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildModernPlantSelector() {
+    return Consumer<PlantProvider>(
+      builder: (context, plantProvider, _) {
+        if (plantProvider.plants.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        if (plantProvider.plants.length == 1) {
+          // Si solo hay una planta, notificar al provider de datos solares
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final solarProvider = context.read<SolarDataProvider>();
+            solarProvider.setSelectedStationCode(plantProvider.plants.first.stationCode);
+          });
+          
+          // Si solo hay una planta, mostrar una tarjeta informativa
+          final plant = plantProvider.plants.first;
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.solar_power,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        plant.stationName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      if (plant.capacity != null)
+                        Text(
+                          'Capacidad: ${plant.capacity!.toStringAsFixed(1)} kW',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 14,
+                          ),
+                        ),
+                      if (plant.stationAddr != null)
+                        Text(
+                          plant.stationAddr!,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Si hay múltiples plantas, mostrar selector horizontal
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 12),
+              child: Text(
+                'Selecciona tu instalación',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            SizedBox(
+              height: 120,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: plantProvider.plants.length,
+                itemBuilder: (context, index) {
+                  final plant = plantProvider.plants[index];
+                  final isSelected =
+                      plant.stationCode == plantProvider.selectedStationCode;
+
+                  return GestureDetector(
+                    onTap: () async {
+                      if (!isSelected) {
+                        plantProvider.setSelectedStationCode(plant.stationCode);
+                        // Notificar al provider de datos solares
+                        context.read<SolarDataProvider>().setSelectedStationCode(plant.stationCode);
+                        // Refrescar datos para la nueva planta
+                        await context.read<SolarDataProvider>().refreshData();
+                        await context.read<DeviceProvider>().refreshDevices();
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 280,
+                      margin: EdgeInsets.only(
+                        right: index < plantProvider.plants.length - 1 ? 16 : 0,
+                      ),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: isSelected
+                            ? LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Theme.of(context).colorScheme.primary,
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withOpacity(0.8),
+                                ],
+                              )
+                            : null,
+                        color: isSelected
+                            ? null
+                            : Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected
+                              ? Colors.transparent
+                              : Theme.of(
+                                  context,
+                                ).colorScheme.outline.withOpacity(0.2),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isSelected
+                                ? Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withOpacity(0.3)
+                                : Colors.black.withOpacity(0.05),
+                            blurRadius: isSelected ? 12 : 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? Colors.white.withOpacity(0.2)
+                                      : Theme.of(
+                                          context,
+                                        ).colorScheme.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.solar_power,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Theme.of(context).colorScheme.primary,
+                                  size: 20,
+                                ),
+                              ),
+                              const Spacer(),
+                              if (isSelected)
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            plant.stationName,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : null,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          if (plant.capacity != null)
+                            Text(
+                              '${plant.capacity!.toStringAsFixed(1)} kW',
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white.withOpacity(0.9)
+                                    : Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall?.color,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          const Spacer(),
+                          if (plant.stationAddr != null)
+                            Text(
+                              plant.stationAddr!,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white.withOpacity(0.8)
+                                    : Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.color
+                                          ?.withOpacity(0.7),
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildStatsSection(BuildContext context, SolarData solarData) {
-    return Card(
+    _log.d('Building stats section with data: ${solarData.toJson()}');
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Estadísticas de Hoy',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    'Producción Diaria',
-                    '${solarData.dailyProduction.toStringAsFixed(1)} kWh',
-                    Icons.wb_sunny,
-                    Colors.orange,
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.analytics,
+                    color: Colors.blue,
+                    size: 24,
                   ),
                 ),
+                const SizedBox(width: 16),
                 Expanded(
-                  child: _buildStatItem(
-                    context,
-                    'Consumo Diario',
-                    '${solarData.dailyConsumption.toStringAsFixed(1)} kWh',
-                    Icons.flash_on,
-                    Colors.blue,
-                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Estadísticas de Hoy',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      // Mostrar estado de salud si está disponible
+                      if (solarData.healthState != null) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              _getHealthIcon(solarData.healthState!),
+                              color: solarData.healthStateColor,
+                              size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            solarData.healthStateText,
+                            style: TextStyle(
+                              color: solarData.healthStateColor,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+              ]),
+              
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    'Excedente',
-                    '${solarData.currentExcess.toStringAsFixed(2)} kW',
-                    Icons.battery_charging_full,
-                    solarData.currentExcess > 0 ? Colors.green : Colors.grey,
+            const SizedBox(height: 24),
+            _buildStatsGrid(context, solarData),
+            
+            // Mostrar información adicional si está disponible
+            if (solarData.totalIncome != null) ...[
+              const SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.green.withOpacity(0.1),
+                      Colors.green.withOpacity(0.05),
+                    ],
                   ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.green.withOpacity(0.2)),
                 ),
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    'Batería',
-                    '${solarData.batteryLevel.toStringAsFixed(0)}%',
-                    Icons.battery_full,
-                    Colors.green,
-                  ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.savings, color: Colors.green, size: 28),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Ingresos Totales',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '€${solarData.totalIncome!.toStringAsFixed(2)}',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatItem(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+  Widget _buildStatsGrid(BuildContext context, SolarData solarData) {
+    final bool hasRealData = solarData.dailyProduction > 0 || solarData.dailyConsumption > 0;
+    _log.d('Stats grid - hasRealData: $hasRealData, dailyProduction: ${solarData.dailyProduction}, dailyConsumption: ${solarData.dailyConsumption}');
+  
     return Column(
       children: [
-        Icon(icon, color: color, size: 32),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatItem(
+                context,
+                'Producción Diaria',
+                hasRealData ? '${solarData.dailyProduction.toStringAsFixed(1)} kWh' : '--',
+                Icons.wb_sunny,
+                hasRealData ? Colors.orange : Colors.grey,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildStatItem(
+                context,
+                'Consumo Diario',
+                hasRealData ? '${solarData.dailyConsumption.toStringAsFixed(1)} kWh' : '--',
+                Icons.flash_on,
+                hasRealData ? Colors.blue : Colors.grey,
+              ),
+            ),
+          ],
         ),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall,
-          textAlign: TextAlign.center,
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatItem(
+                context,
+                solarData.dailyOnGridEnergy != null ? 'Energía a Red' : 'Excedente',
+                hasRealData ? (solarData.dailyOnGridEnergy != null 
+                    ? '${solarData.dailyOnGridEnergy!.toStringAsFixed(1)} kWh'
+                    : '${solarData.currentExcess.toStringAsFixed(2)} kW') : '--',
+                Icons.battery_charging_full,
+                hasRealData ? (solarData.currentExcess > 0 ? Colors.green : Colors.grey) : Colors.grey,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildStatItem(
+                context,
+                solarData.dailyIncome != null ? 'Ingresos Hoy' : 'Batería',
+                hasRealData ? (solarData.dailyIncome != null 
+                    ? '€${solarData.dailyIncome!.toStringAsFixed(2)}'
+                    : '${solarData.batteryLevel.toStringAsFixed(0)}%') : '--',
+                solarData.dailyIncome != null ? Icons.euro : Icons.battery_full,
+                hasRealData ? Colors.green : Colors.grey,
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
+  IconData _getHealthIcon(int healthState) {
+    switch (healthState) {
+      case 1:
+        return Icons.link_off;
+      case 2:
+        return Icons.warning;
+      case 3:
+        return Icons.check_circle;
+      default:
+        return Icons.help;
+    }
+  }
+
   Widget _buildSolarProductionCard(SolarData solarData) {
-    return Card(
+    final bool hasRealData = solarData.currentPower > 0 || solarData.dailyProduction > 0;
+  
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.orange.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.wb_sunny, color: Colors.orange),
-                const SizedBox(width: 8),
-                Text(
-                  'Producción Solar',
-                  style: Theme.of(context).textTheme.titleSmall,
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.wb_sunny, color: Colors.orange, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Producción Solar',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        hasRealData ? (solarData.isProducing ? 'Produciendo energía' : 'Sin producción') : 'Sin datos disponibles',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
-              '${solarData.currentPower.toStringAsFixed(2)} kW',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: Colors.orange,
+              hasRealData ? '${solarData.currentPower.toStringAsFixed(2)} kW' : '--',
+              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                color: hasRealData ? Colors.orange : Colors.grey,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 8),
-            LinearProgressIndicator(
-              value: (solarData.currentPower / 10.0).clamp(0.0, 1.0),
-              backgroundColor: Colors.orange.withOpacity(0.2),
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              solarData.isProducing ? 'Produciendo energía' : 'Sin producción',
-              style: Theme.of(context).textTheme.bodySmall,
+            const SizedBox(height: 16),
+            Container(
+              height: 6,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(3),
+                color: Colors.orange.withOpacity(0.2),
+              ),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: hasRealData ? (solarData.currentPower / 10.0).clamp(0.0, 1.0) : 0.0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(3),
+                    color: Colors.orange,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -277,45 +796,87 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildEnergyConsumptionCard(SolarData solarData) {
-    return Card(
+    final bool hasRealData = solarData.currentConsumption > 0 || solarData.dailyConsumption > 0;
+  
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.flash_on, color: Colors.blue),
-                const SizedBox(width: 8),
-                Text(
-                  'Consumo Actual',
-                  style: Theme.of(context).textTheme.titleSmall,
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.flash_on, color: Colors.blue, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Consumo Actual',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Consumer<DeviceProvider>(
+                        builder: (context, provider, _) {
+                          final activeDevices = provider.onlineDevices.where((d) => d.isOn).length;
+                          return Text(
+                            hasRealData ? '$activeDevices dispositivos activos' : 'Sin datos disponibles',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey[600],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
-              '${solarData.currentConsumption.toStringAsFixed(2)} kW',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: Colors.blue,
+              hasRealData ? '${solarData.currentConsumption.toStringAsFixed(2)} kW' : '--',
+              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                color: hasRealData ? Colors.blue : Colors.grey,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 8),
-            LinearProgressIndicator(
-              value: (solarData.currentConsumption / 8.0).clamp(0.0, 1.0),
-              backgroundColor: Colors.blue.withOpacity(0.2),
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-            ),
-            const SizedBox(height: 8),
-            Consumer<DeviceProvider>(
-              builder: (context, provider, _) {
-                final activeDevices = provider.onlineDevices.where((d) => d.isOn).length;
-                return Text(
-                  '$activeDevices dispositivos activos',
-                  style: Theme.of(context).textTheme.bodySmall,
-                );
-              },
+            const SizedBox(height: 16),
+            Container(
+              height: 6,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(3),
+                color: Colors.blue.withOpacity(0.2),
+              ),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: hasRealData ? (solarData.currentConsumption / 8.0).clamp(0.0, 1.0) : 0.0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(3),
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -329,30 +890,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final enabledRules = provider.enabledRules.length;
         final totalRules = provider.rules.length;
         
-        return Card(
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(24),
             child: Row(
               children: [
-                Icon(
-                  Icons.auto_awesome,
-                  color: provider.isAutomationEnabled ? Colors.green : Colors.grey,
-                  size: 32,
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: provider.isAutomationEnabled 
+                        ? Colors.green.withOpacity(0.1)
+                        : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome,
+                    color: provider.isAutomationEnabled ? Colors.green : Colors.grey,
+                    size: 28,
+                  ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 20),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Automatización',
-                        style: Theme.of(context).textTheme.titleMedium,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         provider.isAutomationEnabled 
                             ? 'Activa ($enabledRules de $totalRules reglas)'
                             : 'Desactivada',
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[600],
+                        ),
                       ),
                     ],
                   ),
@@ -360,6 +946,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Switch(
                   value: provider.isAutomationEnabled,
                   onChanged: (_) => provider.toggleAutomation(),
+                  activeColor: Colors.green,
                 ),
               ],
             ),
@@ -370,17 +957,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildQuickActionsCard() {
-    return Card(
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Acciones Rápidas',
-              style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.flash_auto,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  'Acciones Rápidas',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -429,27 +1046,86 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+            width: 1,
+          ),
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: Theme.of(context).colorScheme.primary,
-              size: 32,
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: Theme.of(context).colorScheme.primary,
+                size: 24,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }

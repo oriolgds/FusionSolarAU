@@ -27,7 +27,8 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
 
     implementation("com.google.firebase:firebase-crashlytics")
-  
+    implementation("com.google.android.play:integrity:1.4.0")
+
     // Add the dependencies for any other desired Firebase products
   
     // https://firebase.google.com/docs/android/setup#available-libraries

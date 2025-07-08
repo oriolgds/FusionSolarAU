@@ -145,22 +145,44 @@ lib/
 
 - ✅ Autenticación con Google
 - ✅ Panel de control con datos en tiempo real
+- ✅ **Integración real con API de FusionSolar**
+- ✅ **Datos reales de producción, consumo e ingresos**
+- ✅ **Estado de salud de las instalaciones solares**
 - ✅ Gestión de dispositivos Google Home (simulados)
 - ✅ Sistema de reglas de automatización
-- ✅ Monitorización de producción solar (simulada)
+- ✅ Selector de plantas/instalaciones múltiples
 - ✅ Perfil de usuario y configuración
 - ✅ Temas claro y oscuro
 - ✅ Interfaz responsive y moderna
 
 ## 🔮 Próximas Funcionalidades
 
-- 🔄 Integración real con API de Fusion Solar
 - 🔄 Conexión real con Google Home API
 - 🔄 Notificaciones push
-- 🔄 Gráficos avanzados de consumo
+- 🔄 Gráficos avanzados de consumo histórico
 - 🔄 Predicción meteorológica
 - 🔄 Exportación de datos
 - 🔄 Configuración avanzada de automatización
+- 🔄 Alertas basadas en estado de salud de la instalación
+
+## 🌟 Datos Reales de FusionSolar
+
+La aplicación ahora obtiene datos reales de tu instalación solar a través de la API oficial de FusionSolar:
+
+### 📊 Métricas en Tiempo Real
+- **Producción diaria**: Energía generada hoy en kWh
+- **Producción mensual**: Energía generada este mes
+- **Producción total**: Energía generada desde la instalación
+- **Consumo diario**: Energía consumida hoy
+- **Energía a red**: Energía exportada a la red eléctrica
+- **Ingresos**: Ingresos generados por la venta de energía
+- **Estado de salud**: Estado operativo de la instalación
+
+### 🔧 Configuración Requerida
+Para acceder a los datos reales, necesitas:
+1. Credenciales de API de FusionSolar (proporcionadas por tu instalador)
+2. Configurar la conexión en la sección "Configuración FusionSolar" del perfil
+3. Seleccionar tu instalación si tienes múltiples plantas
 
 ## 🤝 Contribuir
 
@@ -175,6 +197,10 @@ lib/
 ## 📄 Licencia
 
 Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para detalles.
+
+## 📚 Documentación Oficial de Fusion Solar
+
+- [Documentación de la API de Fusion Solar (Huawei)](https://support.huawei.com/enterprise/en/doc/EDOC1100465337)
 
 ## 📞 Soporte
 
