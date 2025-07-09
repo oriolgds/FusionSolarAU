@@ -183,4 +183,9 @@ class PlantProvider extends ChangeNotifier {
     _isLoading = val;
     notifyListeners();
   }
+
+  Future<void> fetchPlants() async {
+    _log.i('Explicitly fetching plants');
+    await _loadPlants();
+  }
 }

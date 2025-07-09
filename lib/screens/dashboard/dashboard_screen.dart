@@ -101,10 +101,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     
     // If we now have a valid config, refresh the data
     if (_hasValidConfig && mounted) {
+      _log.i('Config is valid, loading data for dashboard');
       // Add a small delay to ensure the UI has updated
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 300));
       
-      // Setup data sync
+      // Setup data sync and load plants first
+      final plantProvider = Provider.of<PlantProvider>(context, listen: false);
+      await plantProvider.fetchPlants();
+      
+      // Then continue with regular setup
       _setupDataSync();
     }
   }
@@ -138,8 +143,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       )
                     : const Icon(Icons.refresh),
                 onPressed: provider.isLoading ? null : () {
-                        provider.forceRefreshData();
-                  context.read<DeviceProvider>().refreshDevices();
+                  _refreshAllData();
                 },
               );
             },
@@ -147,10 +151,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          await context.read<SolarDataProvider>().forceRefreshData();
-          await context.read<DeviceProvider>().refreshDevices();
-        },
+        onRefresh: _refreshAllData,
         child: Consumer<SolarDataProvider>(
           builder: (context, solarProvider, _) {
             if (solarProvider.isLoading && solarProvider.currentData == null) {
@@ -182,7 +183,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () => solarProvider.refreshData(),
+                      onPressed: () => _refreshAllData(),
                       child: const Text('Reintentar'),
                     ),
                   ],
@@ -192,8 +193,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             final solarData = solarProvider.currentData;
             if (solarData == null) {
-              return const Center(
-                child: Text('No hay datos disponibles'),
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No hay datos disponibles',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => _refreshAllData(),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Reintentar'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               );
             }
 
@@ -202,6 +229,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
     );
+  }
+
+  // Nuevo método para refrescar todos los datos
+  Future<void> _refreshAllData() async {
+    _log.i('Refreshing all dashboard data');
+    
+    // Refrescar plantas primero
+    final plantProvider = Provider.of<PlantProvider>(context, listen: false);
+    await plantProvider.fetchPlants();
+    
+    // Luego refrescar datos solares y dispositivos
+    final solarProvider = Provider.of<SolarDataProvider>(context, listen: false);
+    await solarProvider.forceRefreshData();
+    await Provider.of<DeviceProvider>(context, listen: false).refreshDevices();
+    
+    _log.i('All dashboard data refreshed');
   }
 
   Widget _buildDashboard(BuildContext context, SolarData solarData) {

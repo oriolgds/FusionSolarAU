@@ -53,12 +53,26 @@ class FusionSolarNotConfiguredScreen extends StatelessWidget {
                   final result = await Navigator.push<bool>(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const FusionSolarConfigScreen(),
+                      builder: (context) => FusionSolarConfigScreen(
+                        onConfigUpdated: () {
+                          // Esto se llama mientras aún estamos en la pantalla de configuración
+                          // Útil para actualizaciones en tiempo real
+                        },
+                      ),
                     ),
                   );
                   
-                  // If configuration was successful, notify parent
+                  // Si la configuración fue exitosa, notificar al padre
                   if (result == true && onConfigured != null) {
+                    // Informamos al usuario que estamos actualizando
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Obteniendo datos solares...'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                    
+                    // Notificar al dashboard para refrescar datos
                     onConfigured!();
                   }
                 },

@@ -155,6 +155,8 @@ class SolarDataProvider extends ChangeNotifier {
   /// Fuerza la recarga de datos desde la API, ignorando el caché si es antiguo
   Future<void> forceRefreshData() async {
     _log.i('Force refreshing data for station: $_selectedStationCode');
+    // Restablecer el último fetch exitoso para permitir un nuevo fetch inmediatamente
+    _lastSuccessfulFetch = null;
     await refreshData(forceRefresh: true);
   }
 

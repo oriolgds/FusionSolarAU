@@ -193,16 +193,23 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
     setState(() => _isLoading = true);
     try {
       final xsrfToken = await _oauthService.loginWithAccount(username, password);
-      setState(() => _isLoading = false);
       if (xsrfToken != null && mounted) {
+        setState(() {
+          _hasValidConfig = true;
+          _isLoading = false;
+        });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('¡Inicio de sesión correcto!'), backgroundColor: Colors.green),
         );
-        await _checkCurrentConfig();
+        
         // Notify parent that configuration was updated
         if (widget.onConfigUpdated != null) {
           widget.onConfigUpdated!();
         }
+        
+        // Return true to indicate success when used as a route
+        Navigator.of(context).pop(true);
       } else {
         throw Exception('No se pudo obtener el token de sesión');
       }
