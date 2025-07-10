@@ -67,7 +67,6 @@ class PlantProvider extends ChangeNotifier {
       final data = await _supabase.from('plants').select().eq('user_id', user.id);
       if (data.isNotEmpty) {
         _plants = data.map((p) => Plant.fromJson(p)).toList();
-        _log.i('Loaded ${_plants.length} plants from Supabase');
         await _saveToCache();
       }
 

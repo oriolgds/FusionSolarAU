@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/solar_data_provider.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/automation_provider.dart';
+import '../../providers/inverter_real_time_provider.dart';
 import '../../models/solar_data.dart';
 import '../../services/fusion_solar_oauth_service.dart';
 import '../../providers/plant_provider.dart';
@@ -25,7 +26,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _log.i('DashboardScreen initialized');
     _checkFusionSolarConfig();
   }
 
@@ -69,6 +69,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _setupDataSync() {
     final plantProvider = context.read<PlantProvider>();
     final solarProvider = context.read<SolarDataProvider>();
+    final inverterProvider = context.read<InverterRealTimeProvider>();
 
     // Si ya hay plantas cargadas, configurar inmediatamente
     if (plantProvider.plants.isNotEmpty) {
@@ -76,6 +77,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           plantProvider.selectedStationCode ??
           plantProvider.plants.first.stationCode;
       solarProvider.setSelectedStationCode(selectedCode);
+      inverterProvider.setStationCode(selectedCode);
       if (plantProvider.selectedStationCode == null) {
         plantProvider.setSelectedStationCode(selectedCode);
       }
@@ -101,7 +103,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     
     // If we now have a valid config, refresh the data
     if (_hasValidConfig && mounted) {
-      _log.i('Config is valid, loading data for dashboard');
       // Add a small delay to ensure the UI has updated
       await Future.delayed(const Duration(milliseconds: 300));
       
@@ -233,24 +234,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Nuevo método para refrescar todos los datos
   Future<void> _refreshAllData() async {
-    _log.i('Refreshing all dashboard data');
-    
     // Refrescar plantas primero
     final plantProvider = Provider.of<PlantProvider>(context, listen: false);
     await plantProvider.fetchPlants();
     
-    // Luego refrescar datos solares y dispositivos
+    // Luego refrescar datos solares, datos en tiempo real y dispositivos
     final solarProvider = Provider.of<SolarDataProvider>(context, listen: false);
-    await solarProvider.forceRefreshData();
-    await Provider.of<DeviceProvider>(context, listen: false).refreshDevices();
-    
-    _log.i('All dashboard data refreshed');
+    final inverterProvider = Provider.of<InverterRealTimeProvider>(
+      context,
+      listen: false,
+    );
+
+    await Future.wait([
+      solarProvider.forceRefreshData(),
+      inverterProvider.forceRefresh(),
+      Provider.of<DeviceProvider>(context, listen: false).refreshDevices(),
+    ]);
   }
 
   Widget _buildDashboard(BuildContext context, SolarData solarData) {
-    _log.i('Building dashboard with data: dailyProduction=${solarData.dailyProduction}, dailyConsumption=${solarData.dailyConsumption}');
-    _log.d('SolarData details: currentPower=${solarData.currentPower}, dailyIncome=${solarData.dailyIncome}, healthState=${solarData.healthState}');
-    
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -260,6 +262,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _buildModernPlantSelector(),
 
           const SizedBox(height: 28),
+
+          // Datos en tiempo real del inversor
+          _buildInverterRealTimeCard(),
+
+          const SizedBox(height: 20),
           
           // Tarjetas principales de energía
           Row(
@@ -301,11 +308,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
 
         if (plantProvider.plants.length == 1) {
-          // Si solo hay una planta, notificar al provider de datos solares
+          // Si solo hay una planta, notificar a los providers
           WidgetsBinding.instance.addPostFrameCallback((_) {
             final solarProvider = context.read<SolarDataProvider>();
+            final inverterProvider = context.read<InverterRealTimeProvider>();
             final plantCode = plantProvider.plants.first.stationCode;
             solarProvider.setSelectedStationCode(plantCode);
+            inverterProvider.setStationCode(plantCode);
 
             // Asegurar que el plant provider también tenga seleccionada la planta
             if (plantProvider.selectedStationCode != plantCode) {
@@ -431,9 +440,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         // Primero establecer en plant provider
                         plantProvider.setSelectedStationCode(plant.stationCode);
                         
-                        // Luego notificar al provider de datos solares
+                        // Luego notificar a los providers de datos
                         final solarProvider = context.read<SolarDataProvider>();
+                        final inverterProvider = context
+                            .read<InverterRealTimeProvider>();
                         solarProvider.setSelectedStationCode(plant.stationCode);
+                        inverterProvider.setStationCode(plant.stationCode);
 
                         // Refrescar dispositivos para la nueva planta
                         await context.read<DeviceProvider>().refreshDevices();
@@ -1197,5 +1209,229 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildInverterRealTimeCard() {
+    return Consumer<InverterRealTimeProvider>(
+      builder: (context, inverterProvider, _) {
+        final hasData = inverterProvider.hasData;
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.blue.withOpacity(0.1),
+                Colors.blue.withOpacity(0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.blue.withOpacity(0.2), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.memory,
+                      color: Colors.blue,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Datos del Inversor en Tiempo Real',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue[700],
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: hasData && !inverterProvider.isLoading
+                                    ? Colors.green
+                                    : Colors.grey,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              inverterProvider.isLoading
+                                  ? 'Obteniendo datos...'
+                                  : hasData
+                                  ? 'Datos actualizados'
+                                  : 'Sin datos disponibles',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (inverterProvider.isLoading)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              if (inverterProvider.error != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.red,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          inverterProvider.error!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildRealTimeDataItem(
+                        'Potencia Activa',
+                        hasData
+                            ? '${inverterProvider.activePower.toStringAsFixed(3)} kW'
+                            : '--',
+                        Icons.flash_on,
+                        Colors.orange,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildRealTimeDataItem(
+                        'Temperatura',
+                        hasData
+                            ? '${inverterProvider.temperature.toStringAsFixed(1)}°C'
+                            : '--',
+                        Icons.thermostat,
+                        Colors.red,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildRealTimeDataItem(
+                        'Eficiencia',
+                        hasData
+                            ? '${inverterProvider.efficiency.toStringAsFixed(1)}%'
+                            : '--',
+                        Icons.speed,
+                        Colors.green,
+                      ),
+                    ),
+                  ],
+                ),
+              if (hasData) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Última actualización: ${_formatTimestamp(inverterProvider.currentData!.timestamp)}',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRealTimeDataItem(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inMinutes < 1) {
+      return 'Hace unos segundos';
+    } else if (difference.inMinutes < 60) {
+      return 'Hace ${difference.inMinutes} min';
+    } else if (difference.inHours < 24) {
+      return 'Hace ${difference.inHours}h ${difference.inMinutes % 60}min';
+    } else {
+      return '${timestamp.day}/${timestamp.month} ${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
+    }
   }
 }
