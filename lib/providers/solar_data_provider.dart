@@ -20,7 +20,6 @@ class SolarDataProvider extends ChangeNotifier {
   String? get error => _error;
 
   SolarDataProvider() {
-    _log.i('SolarDataProvider initialized');
     // No inicializar datos automáticamente, esperar a que se establezca el código de estación
   }
 
@@ -96,24 +95,11 @@ class SolarDataProvider extends ChangeNotifier {
         forceRefresh: forceRefresh,
       );
       
-      _log.i('Received data from service: ${data != null ? 'SUCCESS' : 'NULL'}');
-      if (data != null) {
-        _log.d('Data details - currentPower: ${data.currentPower}, dailyProduction: ${data.dailyProduction}, dailyConsumption: ${data.dailyConsumption}');
-        _log.d('Income data - dailyIncome: ${data.dailyIncome}, totalIncome: ${data.totalIncome}');
-        _log.d('Health state: ${data.healthState} (${data.healthStateText})');
-        
-        _currentData = data;
-        
-        // Solo actualizar timestamp si obtuvimos datos válidos
-        if (_isValidData(data)) {
-          _lastSuccessfulFetch = DateTime.now();
-          _log.i('Updated last successful fetch timestamp');
-        }
-      } else {
-        _log.w('No data received from service');
-        // Si no hay configuración válida, limpiar todos los datos
-        _currentData = SolarData.noData();
-        _lastSuccessfulFetch = null;
+      _currentData = data;
+      
+      // Solo actualizar timestamp si obtuvimos datos válidos
+      if (_isValidData(data)) {
+        _lastSuccessfulFetch = DateTime.now();
       }
       
       _setLoading(false);
