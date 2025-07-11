@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-ios:
-    runs-on: macos-1atest
+    runs-on: macos-latest
 
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
