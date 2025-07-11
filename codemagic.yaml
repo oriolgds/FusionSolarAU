@@ -4,10 +4,6 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
-      vars:
-        SUPABASE_URL: En_Codemagic
-        SUPABASE_ANON_KEY: En_Codemagic
-        FIREBASE_OPTIONS_DART: En_Codemagic
     scripts:
       # Crea el archivo .env a partir de las variables de entorno
       - echo "SUPABASE_URL=$SUPABASE_URL" > .env
