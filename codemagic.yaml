@@ -9,7 +9,7 @@ workflows:
     scripts:
       # Crea el archivo .env a partir de las variables de entorno
       - echo "SUPABASE_URL=$SUPABASE_URL" > .env
-      - echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> .env
+      - echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" > .env
       - cat .env
       - echo "FIREBASE_OPTIONS_DART=$FIREBASE_OPTIONS_DART"
       # Crea el archivo firebase_options.dart a partir de la variable de entorno
