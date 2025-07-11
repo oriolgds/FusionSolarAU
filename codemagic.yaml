@@ -4,6 +4,8 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
+      groups:
+        - Supabase
     scripts:
       # Crea el archivo .env a partir de las variables de entorno
       - echo "SUPABASE_URL=$SUPABASE_URL" > .env
