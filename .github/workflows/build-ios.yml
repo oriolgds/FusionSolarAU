@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-ios:
-    runs-on: macos-latest
+    runs-on: macos-14
 
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -22,6 +22,8 @@ jobs:
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.2'
 
       - name: Create .env file
         run: |
