@@ -13,6 +13,16 @@
 
 FusionSolarAU es una aplicación innovadora que conecta tu instalación solar de Fusion Solar con los dispositivos Google Home de tu hogar, permitiendo una gestión automática e inteligente de la energía. La aplicación analiza en tiempo real los datos de producción, consumo y excedentes de tu instalación fotovoltaica para optimizar el uso de tus dispositivos inteligentes.
 
+<div align="center">
+  <a href="https://play.google.com/store/apps/details?id=com.oriolgds.fusionsolarau">
+    <img alt="Get it on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80"/>
+  </a>
+  
+  <a href="https://play.google.com/apps/testing/com.oriolgds.fusionsolarau">
+    <img alt="Join Beta Testing" src="https://img.shields.io/badge/Join-Beta%20Testing-orange?style=for-the-badge&logo=google-play" height="50" style="margin-top: 15px;"/>
+  </a>
+</div>
+
 ## ✨ Características Principales
 
 ### 🔋 Automatización Basada en Excedentes
