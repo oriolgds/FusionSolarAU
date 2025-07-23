@@ -113,41 +113,54 @@ class InverterRealTimeService {
       }
       _log.i('🔧 SERVICE: ✅ User authenticated: ${user.id}');
 
-      // 1. Verificar si tenemos datos recientes en caché (< 5 minutos)
+      // Normalizar el código de estación
+      final String normalizedCode = stationCode.startsWith('NE=') 
+          ? stationCode 
+          : stationCode.replaceAll(RegExp(r'[^0-9]'), '');
+
+      // Verificar si hay datos en caché y si next_fetch_allowed es mayor que la fecha actual
       if (!forceRefresh) {
-        final cachedData = await _getCachedRealTimeData(stationCode);
-        if (cachedData != null) {
-          _log.i('🔧 SERVICE: ✅ Returning cached data (age: fresh)');
-          return cachedData;
+        final cacheResult = await _supabase
+            .from('real_time_data')
+            .select()
+            .eq('user_id', user.id)
+            .eq('station_code', normalizedCode)
+            .maybeSingle();
+
+        if (cacheResult != null && cacheResult['next_fetch_allowed'] != null) {
+          final nextAllowed = DateTime.parse(cacheResult['next_fetch_allowed']);
+          final now = DateTime.now();
+          
+          // Si next_fetch_allowed es mayor que la fecha actual, usar los datos en caché
+          if (now.isBefore(nextAllowed)) {
+            _log.i('🔧 SERVICE: ✅ Using cached data (next fetch at: $nextAllowed)');
+            return InverterRealTimeData.fromJson(cacheResult);
+          }
+          _log.d('🔧 SERVICE: ⏰ Cache expired, fetching fresh data');
+        } else {
+          _log.d('🔧 SERVICE: No valid cached data found');
         }
-        _log.d('🔧 SERVICE: No fresh cached data found');
       }
 
-      // 2. Obtener el device DN del inversor (con caché)
+      // Obtener el device DN del inversor (con caché)
       final deviceDn = await _getInverterDeviceDn(stationCode);
       if (deviceDn == null) {
         _log.w('🔧 SERVICE: ❌ No inverter device DN found for station: $stationCode');
-        return null;
+        return await _getCachedRealTimeData(stationCode, allowOlder: true); // Intentar usar caché antiguo
       }
       _log.i('🔧 SERVICE: ✅ Found device DN: $deviceDn');
 
-      // 3. Verificar si podemos hacer fetch de datos en tiempo real
-      if (!forceRefresh && !await _canFetchRealTimeData(stationCode)) {
-        _log.w('🔧 SERVICE: ⏰ Rate limited, returning old cached data');
-        return await _getCachedRealTimeData(stationCode, allowOlder: true);
-      }
-
-      // 4. Hacer fetch de datos en tiempo real
+      // Hacer fetch de datos en tiempo real
       _log.i('🔧 SERVICE: 🌐 Making API call to fetch real-time data');
       final realTimeData = await _fetchRealTimeData(deviceDn);
       if (realTimeData != null) {
-        // 5. Guardar en caché
+        // Guardar en caché con next_fetch_allowed a 5 minutos en el futuro
         await _saveRealTimeDataToCache(stationCode, deviceDn, realTimeData);
         _log.i('🔧 SERVICE: ✅ Successfully fetched and cached real-time data');
         return realTimeData;
       }
 
-      // 6. Si falla, devolver datos del caché aunque sean antiguos
+      // Si falla la petición a la API, devolver datos del caché aunque sean antiguos
       _log.w('🔧 SERVICE: ⚠️ API call failed, falling back to old cache');
       return await _getCachedRealTimeData(stationCode, allowOlder: true);
     } catch (e, stackTrace) {
@@ -306,36 +319,43 @@ class InverterRealTimeService {
           ? stationCode 
           : stationCode.replaceAll(RegExp(r'[^0-9]'), '');
 
-      _log.i('🔧 SERVICE: 🔍 Looking for cached data for station: $normalizedCode (allowOlder: $allowOlder)');
+      _log.i('🔧 SERVICE: 🔍 Looking for cached data for station: $normalizedCode');
 
-      final query = _supabase
+      // Consulta directa - solo un registro por usuario/estación
+      final result = await _supabase
           .from('real_time_data')
           .select()
           .eq('user_id', user.id)
           .eq('station_code', normalizedCode)
-          .order('created_at', ascending: false)
-          .limit(1);
+          .maybeSingle();
 
-      final result = await query.maybeSingle();
       if (result == null) {
-        _log.i('🔧 SERVICE: 📭 No cached data found in database');
+        _log.i('🔧 SERVICE: 📥 No cached data found');
         return null;
       }
 
-      _log.i('🔧 SERVICE: ✅ Found cached data entry');
-      final createdAt = DateTime.parse(result['created_at']);
-      final age = DateTime.now().difference(createdAt);
-
-      // Si no permitimos datos antiguos y los datos tienen más de 5 minutos, no devolver
-      if (!allowOlder && age.inMinutes >= 5) {
-        _log.d('🔧 SERVICE: ⏰ Cached data too old: ${age.inMinutes} minutes');
-        return null;
+      _log.i('🔧 SERVICE: ✅ Found cached data');
+      
+      // Si no permitimos datos antiguos, verificar next_fetch_allowed
+      if (!allowOlder && result['next_fetch_allowed'] != null) {
+        final nextAllowed = DateTime.parse(result['next_fetch_allowed']);
+        final now = DateTime.now();
+        
+        // Si aún no es tiempo de hacer fetch, usar los datos en caché
+        if (now.isBefore(nextAllowed)) {
+          _log.i('🔧 SERVICE: ✅ Using cached data (next fetch at: $nextAllowed)');
+          return InverterRealTimeData.fromJson(result);
+        } else {
+          _log.d('🔧 SERVICE: ⏰ Cache expired, need fresh data');
+          return null;
+        }
       }
-
-      _log.i('🔧 SERVICE: ✅ Using cached real-time data (age: ${age.inMinutes} minutes)');
+      
+      // Si allowOlder es true o no hay next_fetch_allowed, devolver los datos
+      _log.i('🔧 SERVICE: ✅ Using cached data (allowOlder: $allowOlder)');
       return InverterRealTimeData.fromJson(result);
     } catch (e, stackTrace) {
-      _log.e('🔧 SERVICE: ❌ Error getting cached real-time data', error: e, stackTrace: stackTrace);
+      _log.e('🔧 SERVICE: ❌ Error getting cached data', error: e, stackTrace: stackTrace);
       return null;
     }
   }
@@ -358,24 +378,57 @@ class InverterRealTimeService {
       final now = DateTime.now();
       final nextFetch = now.add(const Duration(minutes: 5));
 
-      // Usar upsert con user_id y station_code como claves únicas
-      // Esto reemplazará el registro anterior en lugar de crear uno nuevo
-      await _supabase.from('real_time_data').upsert(
-        {
-          'user_id': user.id,
-          'station_code': normalizedCode,
-          'dev_dn': deviceDn,
-          'active_power': data.activePower,
-          'temperature': data.temperature,
-          'efficiency': data.efficiency,
-          'created_at': now.toIso8601String(),
-          'fetched_at': now.toIso8601String(),
-          'next_fetch_allowed': nextFetch.toIso8601String(),
-        },
-        onConflict: 'user_id,station_code'
-      );
+      _log.i('🔧 SERVICE: Saving real-time data for station: $normalizedCode');
 
-      _log.d('Saved real-time data to cache');
+      try {
+        // Usar upsert con user_id y station_code como claves únicas
+        // Esto reemplazará el registro anterior en lugar de crear uno nuevo
+        await _supabase.from('real_time_data').upsert(
+          {
+            'user_id': user.id,
+            'station_code': normalizedCode,
+            'dev_dn': deviceDn,
+            'active_power': data.activePower,
+            'temperature': data.temperature,
+            'efficiency': data.efficiency,
+            'created_at': now.toIso8601String(),
+            'fetched_at': now.toIso8601String(),
+            'next_fetch_allowed': nextFetch.toIso8601String(),
+          },
+          onConflict: 'user_id,station_code'
+        );
+        _log.i('🔧 SERVICE: ✅ Successfully saved real-time data to cache');
+      } catch (e) {
+        _log.e('🔧 SERVICE: ❌ Error in upsert operation: $e');
+        
+        // Intentar insertar directamente si upsert falla
+        try {
+          // Primero eliminar cualquier registro existente
+          await _supabase.from('real_time_data')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('station_code', normalizedCode);
+          
+          // Luego insertar el nuevo registro
+          await _supabase.from('real_time_data').insert(
+            {
+              'user_id': user.id,
+              'station_code': normalizedCode,
+              'dev_dn': deviceDn,
+              'active_power': data.activePower,
+              'temperature': data.temperature,
+              'efficiency': data.efficiency,
+              'created_at': now.toIso8601String(),
+              'fetched_at': now.toIso8601String(),
+              'next_fetch_allowed': nextFetch.toIso8601String(),
+            }
+          );
+          _log.i('🔧 SERVICE: ✅ Successfully saved data using delete+insert');
+        } catch (insertError) {
+          _log.e('🔧 SERVICE: ❌ Error in delete+insert operation: $insertError');
+          rethrow;
+        }
+      }
     } catch (e) {
       _log.e('Error saving real-time data to cache', error: e);
     }
