@@ -22,6 +22,7 @@ class InverterRealTimeProvider extends ChangeNotifier {
   double get temperature => _currentData?.temperature ?? 0.0;
   double get efficiency => _currentData?.efficiency ?? 0.0;
   bool get hasData => _currentData != null;
+  DateTime? get lastUpdated => _currentData?.fetchedAt;
 
   InverterRealTimeProvider() {
     _log.i('InverterRealTimeProvider initialized');
@@ -76,10 +77,17 @@ class InverterRealTimeProvider extends ChangeNotifier {
     try {
       _log.i('🔧 INVERTER: Starting refresh for station: $_currentStationCode (forceRefresh: $forceRefresh)');
 
-      final data = await _service.getRealTimeData(
-        stationCode: _currentStationCode!,
-        forceRefresh: forceRefresh,
-      );
+      // Intentar obtener datos con manejo de errores mejorado
+      InverterRealTimeData? data;
+      try {
+        data = await _service.getRealTimeData(
+          stationCode: _currentStationCode!,
+          forceRefresh: forceRefresh,
+        );
+      } catch (serviceError) {
+        _log.e('🔧 INVERTER: Error en el servicio: $serviceError');
+        // Continuar con data = null para manejar el error más adelante
+      }
 
       _log.i('🔧 INVERTER: Service returned data: ${data != null}');
 
@@ -89,9 +97,14 @@ class InverterRealTimeProvider extends ChangeNotifier {
           '🔧 INVERTER: ✅ Successfully updated real-time data: ${data.activePower}kW, ${data.temperature}°C, ${data.efficiency}%',
         );
       } else {
-        final errorMsg = 'No se pudieron obtener datos del inversor';
-        _setError(errorMsg);
-        _log.w('🔧 INVERTER: ❌ $errorMsg - Service returned null');
+        // Si ya tenemos datos previos, mantenerlos y solo mostrar advertencia
+        if (_currentData != null) {
+          _log.w('🔧 INVERTER: No se pudieron obtener nuevos datos, manteniendo datos anteriores');
+        } else {
+          final errorMsg = 'No se pudieron obtener datos del inversor';
+          _setError(errorMsg);
+          _log.w('🔧 INVERTER: ❌ $errorMsg - Service returned null');
+        }
       }
     } catch (e, stackTrace) {
       final errorMsg = 'Error obteniendo datos en tiempo real: $e';

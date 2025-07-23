@@ -132,9 +132,14 @@ class FusionSolarService {
         _log.w('No authenticated user for cache lookup');
         return null;
       }
+      
+      // Normalizar el código de estación
+      final String normalizedCode = stationCode.startsWith('NE=') 
+          ? stationCode 
+          : stationCode.replaceAll(RegExp(r'[^0-9]'), '');
 
       final today = DateTime.now().toIso8601String().split('T')[0];
-      _log.d('Looking for cached data for date: $today');
+      _log.d('Looking for cached data for date: $today, station: $normalizedCode');
 
       // Verificar si la tabla existe antes de hacer la consulta
       _log.d('Attempting to query solar_daily_data table...');
@@ -143,7 +148,7 @@ class FusionSolarService {
           .from('solar_daily_data')
           .select()
           .eq('user_id', user.id)
-          .eq('station_code', stationCode)
+          .eq('station_code', normalizedCode)
           .eq('data_date', today)
           .maybeSingle();
 
@@ -201,16 +206,21 @@ class FusionSolarService {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) return false;
+      
+      // Normalizar el código de estación
+      final String normalizedCode = stationCode.startsWith('NE=') 
+          ? stationCode 
+          : stationCode.replaceAll(RegExp(r'[^0-9]'), '');
 
       final today = DateTime.now().toIso8601String().split('T')[0];
       
-      _log.d('Checking fetch permissions for station: $stationCode');
+      _log.d('Checking fetch permissions for station: $normalizedCode');
       
       final result = await _supabase
           .from('solar_daily_data')
           .select('next_fetch_allowed, fetched_at')
           .eq('user_id', user.id)
-          .eq('station_code', stationCode)
+          .eq('station_code', normalizedCode)
           .eq('data_date', today)
           .maybeSingle();
 
@@ -308,6 +318,11 @@ class FusionSolarService {
         _log.w('No authenticated user, skipping cache save');
         return;
       }
+      
+      // Normalizar el código de estación
+      final String normalizedCode = stationCode.startsWith('NE=') 
+          ? stationCode 
+          : stationCode.replaceAll(RegExp(r'[^0-9]'), '');
 
       final now = DateTime.now();
       final today = now.toIso8601String().split('T')[0];
@@ -315,7 +330,7 @@ class FusionSolarService {
 
       final dataToSave = {
         'user_id': user.id,
-        'station_code': stationCode,
+        'station_code': normalizedCode,
         'data_date': today,
         'day_power': double.tryParse(dataItemMap['day_power']?.toString() ?? '0') ?? 0.0,
         'month_power': double.tryParse(dataItemMap['month_power']?.toString() ?? '0') ?? 0.0,
@@ -338,7 +353,7 @@ class FusionSolarService {
           .upsert(dataToSave, onConflict: 'user_id,station_code,data_date');
 
       _log.i(
-        'Day statistics saved to optimized cache for station: $stationCode',
+        'Day statistics saved to optimized cache for station: $normalizedCode',
       );
     } catch (e) {
       _log.e('Error saving day statistics to cache: $e');
@@ -355,15 +370,20 @@ class FusionSolarService {
         _log.w('No authenticated user for fallback data');
         return SolarData.noData();
       }
+      
+      // Normalizar el código de estación
+      final String normalizedCode = stationCode.startsWith('NE=') 
+          ? stationCode 
+          : stationCode.replaceAll(RegExp(r'[^0-9]'), '');
 
-      _log.d('Attempting to get fallback data from cache...');
+      _log.d('Attempting to get fallback data from cache for station: $normalizedCode');
 
       // Buscar los datos más recientes (incluso de días anteriores)
       final result = await _supabase
           .from('solar_daily_data')
           .select()
           .eq('user_id', user.id)
-          .eq('station_code', stationCode)
+          .eq('station_code', normalizedCode)
           .order('data_date', ascending: false)
           .order('fetched_at', ascending: false)
           .limit(1)
@@ -405,6 +425,11 @@ class FusionSolarService {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
+      
+      // Normalizar el código de estación
+      final String normalizedCode = stationCode.startsWith('NE=') 
+          ? stationCode 
+          : stationCode.replaceAll(RegExp(r'[^0-9]'), '');
 
       final now = DateTime.now();
       final nextFetch = now.add(const Duration(minutes: 5));
@@ -413,7 +438,7 @@ class FusionSolarService {
           .from('solar_daily_data')
           .update({'next_fetch_allowed': nextFetch.toIso8601String()})
           .eq('user_id', user.id)
-          .eq('station_code', stationCode)
+          .eq('station_code', normalizedCode)
           .eq('data_date', now.toIso8601String().split('T')[0]);
 
       _log.d('Updated fetch metadata for station: $stationCode');
@@ -449,16 +474,21 @@ class FusionSolarService {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) return true;
+      
+      // Normalizar el código de estación
+      final String normalizedCode = stationCode.startsWith('NE=') 
+          ? stationCode 
+          : stationCode.replaceAll(RegExp(r'[^0-9]'), '');
 
       final today = DateTime.now().toIso8601String().split('T')[0];
 
-      _log.d('Checking cache age for force refresh...');
+      _log.d('Checking cache age for force refresh for station: $normalizedCode');
 
       final result = await _supabase
           .from('solar_daily_data')
           .select('fetched_at')
           .eq('user_id', user.id)
-          .eq('station_code', stationCode)
+          .eq('station_code', normalizedCode)
           .eq('data_date', today)
           .maybeSingle();
 

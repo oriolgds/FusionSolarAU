@@ -12,6 +12,7 @@ class SolarData extends Equatable {
   final double batteryLevel; // % - Nivel de batería (si aplica)
   final bool isProducing; // Si está generando energía
   final DateTime timestamp;
+  final DateTime? fetchedAt; // Fecha de última actualización
 
   // Nuevos campos de la API real
   final double? dailyIncome; // Revenue today (day_income)
@@ -30,6 +31,7 @@ class SolarData extends Equatable {
     required this.batteryLevel,
     required this.isProducing,
     required this.timestamp,
+    this.fetchedAt,
     this.dailyIncome,
     this.totalIncome,
     this.dailyOnGridEnergy,
@@ -50,6 +52,7 @@ class SolarData extends Equatable {
       timestamp: DateTime.fromMillisecondsSinceEpoch(
         json['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
       ),
+      fetchedAt: json['fetched_at'] != null ? DateTime.parse(json['fetched_at']) : null,
       dailyIncome: json['dailyIncome']?.toDouble(),
       totalIncome: json['totalIncome']?.toDouble(),
       dailyOnGridEnergy: json['dailyOnGridEnergy']?.toDouble(),
@@ -101,6 +104,7 @@ class SolarData extends Equatable {
       batteryLevel: 75.0, // No disponible en la API, usar valor por defecto
       isProducing: currentPower > 0.1,
       timestamp: now,
+      fetchedAt: now,
       dailyIncome: dayIncome,
       totalIncome: totalIncome,
       dailyOnGridEnergy: dayOnGridEnergy,
@@ -129,6 +133,7 @@ class SolarData extends Equatable {
       'batteryLevel': batteryLevel,
       'isProducing': isProducing,
       'timestamp': timestamp.millisecondsSinceEpoch,
+      'fetched_at': fetchedAt?.toIso8601String(),
       'dailyIncome': dailyIncome,
       'totalIncome': totalIncome,
       'dailyOnGridEnergy': dailyOnGridEnergy,
@@ -147,6 +152,7 @@ class SolarData extends Equatable {
     double? batteryLevel,
     bool? isProducing,
     DateTime? timestamp,
+    DateTime? fetchedAt,
     double? dailyIncome,
     double? totalIncome,
     double? dailyOnGridEnergy,
@@ -163,6 +169,7 @@ class SolarData extends Equatable {
       batteryLevel: batteryLevel ?? this.batteryLevel,
       isProducing: isProducing ?? this.isProducing,
       timestamp: timestamp ?? this.timestamp,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
       dailyIncome: dailyIncome ?? this.dailyIncome,
       totalIncome: totalIncome ?? this.totalIncome,
       dailyOnGridEnergy: dailyOnGridEnergy ?? this.dailyOnGridEnergy,
@@ -200,6 +207,7 @@ class SolarData extends Equatable {
 
   // Constructor que crea una instancia con valores vacíos (sin datos)
   factory SolarData.noData() {
+    final now = DateTime.now();
     return SolarData(
       currentPower: 0,
       dailyProduction: 0,
@@ -210,7 +218,8 @@ class SolarData extends Equatable {
       currentExcess: 0,
       batteryLevel: 0,
       isProducing: false,
-      timestamp: DateTime.now(),
+      timestamp: now,
+      fetchedAt: now,
       dailyIncome: 0,
       totalIncome: 0,
       dailyOnGridEnergy: 0,
@@ -230,6 +239,7 @@ class SolarData extends Equatable {
         batteryLevel,
         isProducing,
         timestamp,
+        fetchedAt,
         dailyIncome,
         totalIncome,
         dailyOnGridEnergy,

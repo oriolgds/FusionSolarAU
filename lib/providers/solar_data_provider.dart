@@ -18,6 +18,7 @@ class SolarDataProvider extends ChangeNotifier {
   SolarData? get currentData => _currentData;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  DateTime? get lastUpdated => _currentData?.fetchedAt ?? _lastSuccessfulFetch;
 
   SolarDataProvider() {
     // No inicializar datos automáticamente, esperar a que se establezca el código de estación

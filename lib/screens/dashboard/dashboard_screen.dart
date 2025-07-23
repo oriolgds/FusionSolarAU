@@ -655,6 +655,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ],
                       ),
+                      // Mostrar fecha de última actualización
+                      const SizedBox(height: 4),
+                      Consumer<SolarDataProvider>(
+                        builder: (context, provider, _) {
+                          return Row(
+                            children: [
+                              Icon(Icons.update, size: 14, color: Colors.grey[500]),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Actualizado: ${_formatTimestamp(provider.currentData?.timestamp ?? DateTime.now())}',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ],
               ]),
               
@@ -1362,11 +1378,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               if (hasData) ...[
                 const SizedBox(height: 16),
-                Text(
-                  'Última actualización: ${_formatTimestamp(inverterProvider.currentData!.timestamp)}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
+                Row(
+                  children: [
+                    Icon(Icons.update, size: 14, color: Colors.grey[500]),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Última actualización: ${_formatTimestamp(inverterProvider.lastUpdated ?? inverterProvider.currentData!.timestamp)}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
+                    ),
+                  ],
                 ),
               ],
             ],
