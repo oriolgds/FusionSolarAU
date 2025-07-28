@@ -41,7 +41,7 @@ class InverterRealTimeProvider extends ChangeNotifier {
         _log.i('🔧 PROVIDER: Setting up data fetch for station: $stationCode');
         // Obtener datos inmediatamente
         refreshData();
-        // Configurar timer para refrescar cada 5 minutos
+        // Configurar timer para refrescar cada 10 minutos
         _startRefreshTimer();
       } else {
         _log.w('🔧 PROVIDER: Clearing data (no station code)');
@@ -53,15 +53,15 @@ class InverterRealTimeProvider extends ChangeNotifier {
     }
   }
 
-  /// Inicia el timer para refrescar datos cada 5 minutos
+  /// Inicia el timer para refrescar datos cada 10 minutos
   void _startRefreshTimer() {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
+    _refreshTimer = Timer.periodic(const Duration(minutes: 10), (timer) {
       if (_currentStationCode != null) {
         refreshData();
       }
     });
-    _log.i('Started refresh timer for real-time data (5 minute intervals)');
+    _log.i('Started refresh timer for real-time data (10 minute intervals)');
   }
 
   /// Refresca los datos de la estación actual

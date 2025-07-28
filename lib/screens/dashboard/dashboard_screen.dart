@@ -4,6 +4,7 @@ import '../../providers/solar_data_provider.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/automation_provider.dart';
 import '../../providers/inverter_real_time_provider.dart';
+import '../../providers/meter_provider.dart';
 import '../../models/solar_data.dart';
 import '../../services/fusion_solar_oauth_service.dart';
 import '../../providers/plant_provider.dart';
@@ -70,6 +71,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final plantProvider = context.read<PlantProvider>();
     final solarProvider = context.read<SolarDataProvider>();
     final inverterProvider = context.read<InverterRealTimeProvider>();
+    final meterProvider = context.read<MeterProvider>();
 
     // Si ya hay plantas cargadas, configurar inmediatamente
     if (plantProvider.plants.isNotEmpty) {
@@ -78,6 +80,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           plantProvider.plants.first.stationCode;
       solarProvider.setSelectedStationCode(selectedCode);
       inverterProvider.setStationCode(selectedCode);
+      meterProvider.setStationCode(selectedCode);
       if (plantProvider.selectedStationCode == null) {
         plantProvider.setSelectedStationCode(selectedCode);
       }
@@ -244,10 +247,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context,
       listen: false,
     );
+    final meterProvider = Provider.of<MeterProvider>(context, listen: false);
 
     await Future.wait([
       solarProvider.forceRefreshData(),
       inverterProvider.forceRefresh(),
+      meterProvider.forceRefresh(),
       Provider.of<DeviceProvider>(context, listen: false).refreshDevices(),
     ]);
   }
@@ -265,6 +270,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           // Datos en tiempo real del inversor
           _buildInverterRealTimeCard(),
+
+          const SizedBox(height: 20),
+
+          // Datos del medidor (potencia de red)
+          _buildMeterCard(),
 
           const SizedBox(height: 20),
           
@@ -312,9 +322,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             final solarProvider = context.read<SolarDataProvider>();
             final inverterProvider = context.read<InverterRealTimeProvider>();
+            final meterProvider = context.read<MeterProvider>();
             final plantCode = plantProvider.plants.first.stationCode;
             solarProvider.setSelectedStationCode(plantCode);
             inverterProvider.setStationCode(plantCode);
+            meterProvider.setStationCode(plantCode);
 
             // Asegurar que el plant provider también tenga seleccionada la planta
             if (plantProvider.selectedStationCode != plantCode) {
@@ -444,8 +456,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         final solarProvider = context.read<SolarDataProvider>();
                         final inverterProvider = context
                             .read<InverterRealTimeProvider>();
+                        final meterProvider = context.read<MeterProvider>();
                         solarProvider.setSelectedStationCode(plant.stationCode);
                         inverterProvider.setStationCode(plant.stationCode);
+                        meterProvider.setStationCode(plant.stationCode);
 
                         // Refrescar dispositivos para la nueva planta
                         await context.read<DeviceProvider>().refreshDevices();
@@ -1437,6 +1451,176 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMeterCard() {
+    return Consumer<MeterProvider>(
+      builder: (context, meterProvider, _) {
+        final hasData = meterProvider.hasData;
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.purple.withOpacity(0.1),
+                Colors.purple.withOpacity(0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.purple.withOpacity(0.2), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.electrical_services,
+                      color: Colors.purple,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Potencia de Red',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.purple[700],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: hasData && !meterProvider.isLoading
+                                    ? Colors.green
+                                    : Colors.grey,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              meterProvider.isLoading
+                                  ? 'Obteniendo datos...'
+                                  : hasData
+                                  ? (meterProvider.gridPower > 0 
+                                      ? 'Consumiendo de red' 
+                                      : 'Exportando a red')
+                                  : 'Sin datos disponibles',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (meterProvider.isLoading)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              if (meterProvider.error != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.red,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          meterProvider.error!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildRealTimeDataItem(
+                        'Potencia Red',
+                        hasData
+                            ? '${meterProvider.gridPower.toStringAsFixed(3)} kW'
+                            : '--',
+                        meterProvider.gridPower > 0 ? Icons.call_received : Icons.call_made,
+                        meterProvider.gridPower > 0 ? Colors.red : Colors.green,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildRealTimeDataItem(
+                        'Voltaje',
+                        hasData
+                            ? '${meterProvider.meterVoltage.toStringAsFixed(1)} V'
+                            : '--',
+                        Icons.bolt,
+                        Colors.orange,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildRealTimeDataItem(
+                        'Frecuencia',
+                        hasData
+                            ? '${meterProvider.gridFrequency.toStringAsFixed(2)} Hz'
+                            : '--',
+                        Icons.waves,
+                        Colors.blue,
+                      ),
+                    ),
+                  ],
+                ),
+              if (hasData) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Icon(Icons.update, size: 14, color: Colors.grey[500]),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Última actualización: ${_formatTimestamp(meterProvider.lastUpdated ?? meterProvider.currentData!.timestamp)}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 

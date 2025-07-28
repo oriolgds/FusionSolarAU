@@ -7,6 +7,7 @@ class SolarData extends Equatable {
   final double monthlyProduction; // kWh - Producción del mes (month_power)
   final double totalProduction; // kWh - Producción total (total_power)
   final double currentConsumption; // kW - Consumo actual
+  final double gridPower; // kW - Potencia de red (positivo = consumiendo, negativo = exportando)
   final double dailyConsumption; // kWh - Consumo del día (day_use_energy)
   final double currentExcess; // kW - Excedente actual (positivo = exportando)
   final double batteryLevel; // % - Nivel de batería (si aplica)
@@ -26,6 +27,7 @@ class SolarData extends Equatable {
     required this.monthlyProduction,
     required this.totalProduction,
     required this.currentConsumption,
+    this.gridPower = 0.0,
     required this.dailyConsumption,
     required this.currentExcess,
     required this.batteryLevel,
@@ -45,6 +47,7 @@ class SolarData extends Equatable {
       monthlyProduction: (json['monthlyProduction'] ?? 0.0).toDouble(),
       totalProduction: (json['totalProduction'] ?? 0.0).toDouble(),
       currentConsumption: (json['currentConsumption'] ?? 0.0).toDouble(),
+      gridPower: (json['gridPower'] ?? 0.0).toDouble(),
       dailyConsumption: (json['dailyConsumption'] ?? 0.0).toDouble(),
       currentExcess: (json['currentExcess'] ?? 0.0).toDouble(),
       batteryLevel: (json['batteryLevel'] ?? 0.0).toDouble(),
@@ -128,6 +131,7 @@ class SolarData extends Equatable {
       'monthlyProduction': monthlyProduction,
       'totalProduction': totalProduction,
       'currentConsumption': currentConsumption,
+      'gridPower': gridPower,
       'dailyConsumption': dailyConsumption,
       'currentExcess': currentExcess,
       'batteryLevel': batteryLevel,
@@ -147,6 +151,7 @@ class SolarData extends Equatable {
     double? monthlyProduction,
     double? totalProduction,
     double? currentConsumption,
+    double? gridPower,
     double? dailyConsumption,
     double? currentExcess,
     double? batteryLevel,
@@ -164,6 +169,7 @@ class SolarData extends Equatable {
       monthlyProduction: monthlyProduction ?? this.monthlyProduction,
       totalProduction: totalProduction ?? this.totalProduction,
       currentConsumption: currentConsumption ?? this.currentConsumption,
+      gridPower: gridPower ?? this.gridPower,
       dailyConsumption: dailyConsumption ?? this.dailyConsumption,
       currentExcess: currentExcess ?? this.currentExcess,
       batteryLevel: batteryLevel ?? this.batteryLevel,
@@ -234,6 +240,7 @@ class SolarData extends Equatable {
         monthlyProduction,
         totalProduction,
         currentConsumption,
+        gridPower,
         dailyConsumption,
         currentExcess,
         batteryLevel,

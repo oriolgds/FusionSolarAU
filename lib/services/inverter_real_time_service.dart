@@ -146,7 +146,7 @@ class InverterRealTimeService {
       final deviceDn = await _getInverterDeviceDn(stationCode);
       if (deviceDn == null) {
         _log.w('🔧 SERVICE: ❌ No inverter device DN found for station: $stationCode');
-        return await _getCachedRealTimeData(stationCode, allowOlder: true); // Intentar usar caché antiguo
+        return null;
       }
       _log.i('🔧 SERVICE: ✅ Found device DN: $deviceDn');
 
@@ -154,18 +154,18 @@ class InverterRealTimeService {
       _log.i('🔧 SERVICE: 🌐 Making API call to fetch real-time data');
       final realTimeData = await _fetchRealTimeData(deviceDn);
       if (realTimeData != null) {
-        // Guardar en caché con next_fetch_allowed a 5 minutos en el futuro
+        // Guardar en caché con next_fetch_allowed a 10 minutos en el futuro
         await _saveRealTimeDataToCache(stationCode, deviceDn, realTimeData);
         _log.i('🔧 SERVICE: ✅ Successfully fetched and cached real-time data');
         return realTimeData;
       }
 
-      // Si falla la petición a la API, devolver datos del caché aunque sean antiguos
-      _log.w('🔧 SERVICE: ⚠️ API call failed, falling back to old cache');
-      return await _getCachedRealTimeData(stationCode, allowOlder: true);
+      // Si falla la petición a la API, devolver null para mostrar error
+      _log.w('🔧 SERVICE: ⚠️ API call failed, returning null to show error');
+      return null;
     } catch (e, stackTrace) {
       _log.e('🔧 SERVICE: ❌ Exception in getRealTimeData', error: e, stackTrace: stackTrace);
-      return await _getCachedRealTimeData(stationCode, allowOlder: true);
+      return null;
     }
   }
 
@@ -376,7 +376,7 @@ class InverterRealTimeService {
           : stationCode.replaceAll(RegExp(r'[^0-9]'), '');
 
       final now = DateTime.now();
-      final nextFetch = now.add(const Duration(minutes: 5));
+      final nextFetch = now.add(const Duration(minutes: 10));
 
       _log.i('🔧 SERVICE: Saving real-time data for station: $normalizedCode');
 

@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/solar_data.dart';
 import '../services/fusion_solar_service.dart';
+import '../services/meter_service.dart';
 import 'package:logger/logger.dart';
 
 class SolarDataProvider extends ChangeNotifier {
   final FusionSolarService _fusionSolarService = FusionSolarService();
+  final MeterService _meterService = MeterService();
   final Logger _log = Logger();
 
   SolarData? _currentData;
@@ -52,14 +54,14 @@ class SolarDataProvider extends ChangeNotifier {
 
   void _startDataTimer() {
     _dataTimer?.cancel();
-    // Cambiar a 5 minutos para respetar el límite de la API
-    _dataTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
+    // Cambiar a 10 minutos para respetar el límite de la API
+    _dataTimer = Timer.periodic(const Duration(minutes: 10), (timer) {
       if (_selectedStationCode != null && _selectedStationCode!.isNotEmpty) {
         _log.d('Timer triggered - refreshing data automatically');
         refreshData();
       }
     });
-    _log.i('Data timer started with 5-minute intervals');
+    _log.i('Data timer started with 10-minute intervals');
   }
 
   Future<void> refreshData({bool forceRefresh = false}) async {
@@ -96,7 +98,20 @@ class SolarDataProvider extends ChangeNotifier {
         forceRefresh: forceRefresh,
       );
       
-      _currentData = data;
+      // Obtener datos del medidor para calcular consumo real
+      MeterData? meterData;
+      try {
+        meterData = await _meterService.getMeterData(
+          stationCode: _selectedStationCode!,
+          forceRefresh: forceRefresh,
+        );
+      } catch (e) {
+        _log.w('Error getting meter data, continuing without it: $e');
+        meterData = null;
+      }
+      
+      // Combinar datos solares con datos del medidor
+      _currentData = _combineWithMeterData(data, meterData);
       
       // Solo actualizar timestamp si obtuvimos datos válidos
       if (_isValidData(data)) {
@@ -227,6 +242,25 @@ class SolarDataProvider extends ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  /// Combina datos solares con datos del medidor para calcular consumo real
+  SolarData _combineWithMeterData(SolarData solarData, MeterData? meterData) {
+    if (meterData == null) {
+      return solarData;
+    }
+
+    // Calcular consumo real: Producción solar + Potencia de red
+    // Si gridPower > 0: consumiendo de red
+    // Si gridPower < 0: exportando a red
+    final realConsumption = solarData.currentPower + meterData.activePower;
+    final realExcess = solarData.currentPower - realConsumption;
+
+    return solarData.copyWith(
+      currentConsumption: realConsumption > 0 ? realConsumption : 0,
+      currentExcess: realExcess,
+      gridPower: meterData.activePower,
+    );
   }
 
   @override
