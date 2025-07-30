@@ -4,8 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../screens/auth/login_screen.dart';
 import '../dashboard/dashboard_screen.dart';
-import '../devices/devices_screen.dart';
-import '../automation/automation_screen.dart';
 import '../profile/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -25,8 +23,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _screens = [
       const DashboardScreen(),
-      const DevicesScreen(),
-      const AutomationScreen(),
       const ProfileScreen(),
     ];
     _initializeSession();
