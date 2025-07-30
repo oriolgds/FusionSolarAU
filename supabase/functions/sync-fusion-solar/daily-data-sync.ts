@@ -1,10 +1,10 @@
-import { FusionSolarClient } from './fusion-solar-api.ts'
+import { FusionSolarAPI } from './fusion-solar-api.ts'
 
 export async function syncDailyData(
   userId: string,
   stationCode: string,
   token: string,
-  fusionSolarAPI: FusionSolarClient,
+  fusionSolarAPI: FusionSolarAPI,
   supabaseClient: any
 ): Promise<void> {
   // Get daily data from FusionSolar
@@ -23,7 +23,7 @@ export async function syncDailyData(
   const dataMap = stationData.dataItemMap || {}
 
   // Save daily data to database
-  await supabaseClient
+  const { error } = await supabaseClient
     .from('solar_daily_data')
     .upsert({
       user_id: userId,
@@ -39,4 +39,11 @@ export async function syncDailyData(
       health_state: parseInt(dataMap.real_health_state || '3'),
       fetched_at: new Date().toISOString()
     }, { onConflict: 'user_id,station_code,data_date' })
+
+  if (error) {
+    console.error('Error saving daily data:', error)
+    throw error
+  }
+
+  console.log(`Daily data synced for station ${stationCode}`)
 }

@@ -1,9 +1,9 @@
-import { FusionSolarClient } from './fusion-solar-api.ts'
+import { FusionSolarAPI } from './fusion-solar-api.ts'
 
 export async function syncPlants(
   userId: string,
   token: string,
-  fusionSolarAPI: FusionSolarClient,
+  fusionSolarAPI: FusionSolarAPI,
   supabaseClient: any
 ): Promise<any[]> {
   // Get plants from FusionSolar
@@ -21,7 +21,7 @@ export async function syncPlants(
 
   // Update plants in database
   for (const plant of plants) {
-    await supabaseClient
+    const { error } = await supabaseClient
       .from('plants')
       .upsert({
         user_id: userId,
@@ -31,7 +31,14 @@ export async function syncPlants(
         capacity: plant.capacity,
         fetched_at: new Date().toISOString()
       }, { onConflict: 'user_id,stationCode' })
+
+    if (error) {
+      console.error('Error saving plant:', error)
+      throw error
+    }
   }
+
+  console.log(`${plants.length} plants synced for user ${userId}`)
 
   return plants
 }
