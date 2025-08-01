@@ -16,7 +16,12 @@ export async function syncDevices(
     )
 
     if (!devicesResponse?.success || !devicesResponse.data) {
-      console.warn(`No devices found for station ${stationCode}, checking cache`)
+      // Check for rate limiting
+      if (devicesResponse?.failCode === 407 || devicesResponse?.data === 'ACCESS_FREQUENCY_IS_TOO_HIGH') {
+        console.warn(`Rate limited for station ${stationCode}, using cached devices`)
+      } else {
+        console.warn(`No devices found for station ${stationCode}, checking cache`)
+      }
       
       // Fallback to cached data
       const { data: cachedDevices } = await supabaseClient
