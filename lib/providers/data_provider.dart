@@ -37,9 +37,9 @@ class DataProvider extends ChangeNotifier {
   
   // Computed values
   double get currentPower => activePower;
-  double get currentConsumption => meterPower > 0 ? meterPower : dailyConsumption / 24.0;
+  double get currentConsumption => activePower - meterPower;
   double get gridPower => meterPower; // Positive = consuming, negative = exporting
-  double get currentExcess => currentPower - currentConsumption;
+  double get currentExcess => -meterPower; // Negative grid power = excess (exporting)
   bool get isProducing => currentPower > 0.1;
   
   DataProvider() {

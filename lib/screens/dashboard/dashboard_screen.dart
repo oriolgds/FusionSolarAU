@@ -14,7 +14,6 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _isCheckingConfig = true;
   bool _hasValidConfig = false;
-  bool _showDetails = false;
 
   @override
   void initState() {
@@ -76,19 +75,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FusionSolarAU'),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.solar_power,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'FusionSolarAU',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'Panel de Control',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        elevation: 0,
+        scrolledUnderElevation: 1,
         actions: [
           Consumer<DataProvider>(
             builder: (context, provider, _) {
-              return IconButton(
-                icon: provider.isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh),
-                onPressed: provider.isLoading ? null : provider.refreshData,
+              return Container(
+                margin: const EdgeInsets.only(right: 16),
+                child: IconButton.filledTonal(
+                  icon: provider.isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh),
+                  onPressed: provider.isLoading ? null : provider.refreshData,
+                ),
               );
             },
           ),
@@ -162,11 +201,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Expanded(child: _buildConsumptionCard(context, provider)),
             ],
           ),
-          
-          const SizedBox(height: 20),
-          
-          // Details accordion
-          _buildDetailsAccordion(context, provider),
           
           const SizedBox(height: 20),
           
@@ -300,76 +334,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildDetailsAccordion(BuildContext context, DataProvider provider) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextButton.icon(
-            onPressed: () {
-              setState(() {
-                _showDetails = !_showDetails;
-              });
-            },
-            icon: Icon(
-              _showDetails ? Icons.expand_less : Icons.expand_more,
-              size: 20,
-            ),
-            label: const Text('Más información'),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.primary,
-              padding: EdgeInsets.zero,
-            ),
-          ),
-          if (_showDetails) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.2)),
-              ),
-              child: Column(
-                children: [
-                  Text('Temperatura: ${provider.temperature.toStringAsFixed(1)}°C', 
-                       style: const TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  Text('Eficiencia: ${provider.efficiency.toStringAsFixed(1)}%', 
-                       style: const TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  Text('Red: ${provider.gridPower.toStringAsFixed(2)} kW', 
-                       style: TextStyle(
-                         fontWeight: FontWeight.w600,
-                         color: provider.gridPower > 0 ? Colors.red : Colors.green,
-                       )),
-                  const SizedBox(height: 8),
-                  Text('Excedente: ${provider.currentExcess.toStringAsFixed(2)} kW', 
-                       style: TextStyle(
-                         fontWeight: FontWeight.w600,
-                         color: provider.currentExcess > 0 ? Colors.green : Colors.red,
-                       )),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildRealTimeCard(BuildContext context, DataProvider provider) {
     return Container(
@@ -390,22 +355,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Datos en Tiempo Real',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Colors.green[700],
-            ),
-          ),
-          const SizedBox(height: 24),
           Row(
             children: [
               Expanded(
                 child: _buildDataItem(
-                  'Potencia',
-                  '${provider.activePower.toStringAsFixed(1)} kW',
-                  Icons.flash_on,
-                  Colors.orange,
+                  'Excedente',
+                  '${(provider.currentExcess * -1).toStringAsFixed(1)} kW',
+                  Icons.upload,
+                  provider.currentExcess * -1 > 0 ? Colors.green : Colors.grey,
                 ),
               ),
               const SizedBox(width: 16),
