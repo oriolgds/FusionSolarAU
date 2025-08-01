@@ -25,7 +25,7 @@ class AuthProvider with ChangeNotifier {
       await googleSignIn.initialize();
       final account = await googleSignIn.authenticate();
       // La comprobación de null ya no es necesaria
-      final auth = await account.authentication;
+      final auth = account.authentication;
       final idToken = auth.idToken;
       if (idToken == null) {
         _isLoading = false;

@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../services/fusion_solar_oauth_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FusionSolarConfigScreen extends StatefulWidget {
   final VoidCallback? onConfigUpdated;
-  final Widget? child;
   
   const FusionSolarConfigScreen({
     super.key,
     this.onConfigUpdated,
-    this.child,
   });
 
   @override
@@ -17,9 +15,9 @@ class FusionSolarConfigScreen extends StatefulWidget {
 }
 
 class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
-  final FusionSolarOAuthService _oauthService = FusionSolarOAuthService();
-  final _clientIdController = TextEditingController();
-  final _clientSecretController = TextEditingController();
+  final SupabaseClient _supabase = Supabase.instance.client;
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
 
   bool _isLoading = false;
   bool _hasValidConfig = false;
@@ -34,9 +32,23 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final hasConfig = await _oauthService.hasValidOAuthConfig();
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        setState(() {
+          _hasValidConfig = false;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final result = await _supabase
+          .from('users')
+          .select('fusion_solar_api_username')
+          .eq('id', user.id)
+          .maybeSingle();
+
       setState(() {
-        _hasValidConfig = hasConfig;
+        _hasValidConfig = result?['fusion_solar_api_username'] != null;
         _isLoading = false;
       });
     } catch (e) {
@@ -51,12 +63,6 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // If we have a child, use it (for the not configured screen)
-    if (widget.child != null) {
-      return widget.child!;
-    }
-    
-    // Otherwise show the full configuration screen
     return Scaffold(
       appBar: AppBar(title: const Text('Configuración FusionSolar')),
       body: _isLoading
@@ -101,7 +107,7 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
                   Text(
                     _hasValidConfig
                         ? 'FusionSolar está conectado y funcionando'
-                        : 'Es necesario configurar OAuth para obtener datos reales',
+                        : 'Es necesario configurar credenciales para obtener datos reales',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
@@ -126,8 +132,8 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
             ),
             const SizedBox(height: 12),
             const Text(
-              '1. Solicita tu usuario y contraseña de Northbound a la empresa que te instalo las placas solares.\n\n'
-              '2. Introduce tus credenciales abajo y autoriza la aplicación.',
+              '1. Solicita tu usuario y contraseña de Northbound a la empresa que te instaló las placas solares.\n\n'
+              '2. Introduce tus credenciales abajo.',
             ),
           ],
         ),
@@ -148,7 +154,7 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
             ),
             const SizedBox(height: 16),
             TextField(
-              controller: _clientIdController,
+              controller: _usernameController,
               decoration: const InputDecoration(
                 labelText: 'Usuario API',
                 border: OutlineInputBorder(),
@@ -158,7 +164,7 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
             ),
             const SizedBox(height: 16),
             TextField(
-              controller: _clientSecretController,
+              controller: _passwordController,
               decoration: const InputDecoration(
                 labelText: 'Contraseña API',
                 border: OutlineInputBorder(),
@@ -170,9 +176,9 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : _loginWithFusionSolar,
-                icon: const Icon(Icons.login),
-                label: const Text('Iniciar sesión en FusionSolar'),
+                onPressed: _isLoading ? null : _saveCredentials,
+                icon: const Icon(Icons.save),
+                label: const Text('Guardar Credenciales'),
               ),
             ),
           ],
@@ -181,9 +187,9 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
     );
   }
 
-  Future<void> _loginWithFusionSolar() async {
-    final username = _clientIdController.text.trim();
-    final password = _clientSecretController.text.trim();
+  Future<void> _saveCredentials() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
     if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Por favor introduce usuario y contraseña')),
@@ -192,45 +198,70 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
     }
     setState(() => _isLoading = true);
     try {
-      final xsrfToken = await _oauthService.loginWithAccount(username, password);
-      if (xsrfToken != null && mounted) {
-        setState(() {
-          _hasValidConfig = true;
-          _isLoading = false;
-        });
-        
+      // Validate credentials with FusionSolar API
+      final response = await _validateCredentials(username, password);
+
+      if (!response['success']) {
+        throw Exception('Credenciales inválidas: ${response['message']}');
+      }
+
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('Usuario no autenticado');
+      }
+
+      await _supabase.from('users').upsert({
+        'id': user.id,
+        'fusion_solar_api_username': username,
+        'fusion_solar_api_password': password,
+      });
+
+      setState(() {
+        _hasValidConfig = true;
+        _isLoading = false;
+      });
+      
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('¡Inicio de sesión correcto!'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('¡Credenciales guardadas!'),
+            backgroundColor: Colors.green,
+          ),
         );
         
-        // Notify parent that configuration was updated
         if (widget.onConfigUpdated != null) {
           widget.onConfigUpdated!();
         }
         
-        // Return true to indicate success when used as a route
         Navigator.of(context).pop(true);
-      } else {
-        throw Exception('No se pudo obtener el token de sesión');
       }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        String errorMessage = 'Error al iniciar sesión: $e';
-
-        // Personalizar mensaje para error de duplicado
-        if (e.toString().contains('ya está siendo utilizado por otra cuenta')) {
-          errorMessage = e.toString().replaceFirst('Exception: ', '');
-        }
-        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
+            content: Text('Error: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
           ),
         );
       }
+    }
+  }
+  
+  Future<Map<String, dynamic>> _validateCredentials(
+    String username,
+    String password,
+  ) async {
+    try {
+      final response = await _supabase.functions.invoke(
+        'validate-credentials',
+        body: {'userName': username, 'systemCode': password},
+      );
+
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
     }
   }
 
@@ -242,23 +273,25 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Sesión activa FusionSolar',
+              'Configuración Activa',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 16),
             const ListTile(
               leading: Icon(Icons.check_circle, color: Colors.green),
-              title: Text('Sesión activa'),
-              subtitle: Text('La app puede acceder a los datos de FusionSolar'),
+              title: Text('Credenciales guardadas'),
+              subtitle: Text(
+                'El servidor puede acceder a los datos de FusionSolar',
+              ),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _logoutFusionSolar,
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Cerrar sesión FusionSolar'),
+                    onPressed: _isLoading ? null : _clearCredentials,
+                    icon: const Icon(Icons.delete),
+                    label: const Text('Eliminar Credenciales'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
@@ -273,42 +306,31 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
     );
   }
 
-  Future<void> _logoutFusionSolar() async {
+  Future<void> _clearCredentials() async {
     setState(() => _isLoading = true);
     try {
-      final xsrfToken = await _oauthService.getCurrentXsrfToken();
-      if (xsrfToken == null || xsrfToken.isEmpty) {
-        // Si no hay token, solo actualizar el estado local
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
         setState(() => _isLoading = false);
-        if (mounted) {
-          // Limpiar campos de texto
-          _clientIdController.clear();
-          _clientSecretController.clear();
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Sesión ya cerrada localmente'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          await _checkCurrentConfig();
-          if (widget.onConfigUpdated != null) {
-            widget.onConfigUpdated!();
-          }
-        }
         return;
       }
       
-      await _oauthService.logoutFusionSolar(xsrfToken);
+      await _supabase
+          .from('users')
+          .update({
+            'fusion_solar_api_username': null,
+            'fusion_solar_api_password': null,
+          })
+          .eq('id', user.id);
+      
       setState(() => _isLoading = false);
       if (mounted) {
-        // Limpiar campos de texto después del logout exitoso
-        _clientIdController.clear();
-        _clientSecretController.clear();
+        _usernameController.clear();
+        _passwordController.clear();
         
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Sesión FusionSolar cerrada correctamente'),
+            content: Text('Credenciales eliminadas'),
             backgroundColor: Colors.green,
           ),
         );
@@ -320,46 +342,21 @@ class _FusionSolarConfigScreenState extends State<FusionSolarConfigScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        // Limpiar campos de texto incluso si hay error
-        _clientIdController.clear();
-        _clientSecretController.clear();
-
-        // Personalizar el mensaje según el tipo de error
-        String message = 'Sesión cerrada localmente';
-        Color color = Colors.orange;
-
-        if (e.toString().contains('network') ||
-            e.toString().contains('connection')) {
-          message = 'Sin conexión: sesión cerrada localmente';
-        } else if (e.toString().contains('token') ||
-            e.toString().contains('expired')) {
-          message = 'Token expirado: sesión cerrada localmente';
-        } else {
-          message = 'Error: $e';
-          color = Colors.red;
-        }
-        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(message),
-            backgroundColor: color,
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
             duration: const Duration(seconds: 4),
           ),
         );
-        
-        // Siempre verificar la configuración y notificar
-        await _checkCurrentConfig();
-        if (widget.onConfigUpdated != null) {
-          widget.onConfigUpdated!();
-        }
       }
     }
   }
 
   @override
   void dispose() {
-    _clientIdController.dispose();
-    _clientSecretController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 }
