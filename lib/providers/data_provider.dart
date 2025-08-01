@@ -30,14 +30,15 @@ class DataProvider extends ChangeNotifier {
   int get healthState => _solarData?['health_state']?.toInt() ?? 3;
   
   // Real-time data getters
-  double get activePower => _realTimeData?['active_power']?.toDouble() ?? 0.0;
+  double get activePower => _realTimeData?['inverter_power']?.toDouble() ?? 0.0;
   double get temperature => _realTimeData?['temperature']?.toDouble() ?? 0.0;
   double get efficiency => _realTimeData?['efficiency']?.toDouble() ?? 0.0;
-  double get gridPower => _realTimeData?['grid_power']?.toDouble() ?? 0.0;
+  double get meterPower => _realTimeData?['meter_power']?.toDouble() ?? 0.0;
   
   // Computed values
   double get currentPower => activePower;
-  double get currentConsumption => dailyConsumption / 24.0;
+  double get currentConsumption => meterPower > 0 ? meterPower : dailyConsumption / 24.0;
+  double get gridPower => meterPower; // Positive = consuming, negative = exporting
   double get currentExcess => currentPower - currentConsumption;
   bool get isProducing => currentPower > 0.1;
   
@@ -77,25 +78,45 @@ class DataProvider extends ChangeNotifier {
       final stationCode = plants.first['stationCode'];
       final today = DateTime.now().toIso8601String().split('T')[0];
       
-      // Fetch both solar and real-time data
-      final results = await Future.wait([
-        _supabase
-            .from('solar_daily_data')
-            .select()
-            .eq('user_id', user.id)
-            .eq('station_code', stationCode)
-            .eq('data_date', today)
-            .maybeSingle(),
-        _supabase
-            .from('real_time_data')
-            .select()
-            .eq('user_id', user.id)
-            .eq('station_code', stationCode)
-            .maybeSingle(),
-      ]);
+      // Fetch solar data
+      _solarData = await _supabase
+          .from('solar_daily_data')
+          .select()
+          .eq('user_id', user.id)
+          .eq('station_code', stationCode)
+          .eq('data_date', today)
+          .maybeSingle();
       
-      _solarData = results[0];
-      _realTimeData = results[1];
+      // Fetch real-time data
+      final realTimeResults = await _supabase
+          .from('real_time_data')
+          .select()
+          .eq('user_id', user.id)
+          .eq('station_code', stationCode);
+      
+      // Process real-time data - combine inverter and meter data
+      if (realTimeResults.isNotEmpty) {
+        final inverterData = realTimeResults.where(
+          (item) => item['device_type'] == 'inverter'
+        ).isNotEmpty ? realTimeResults.where(
+          (item) => item['device_type'] == 'inverter'
+        ).first : null;
+        
+        final meterData = realTimeResults.where(
+          (item) => item['device_type'] == 'meter'
+        ).isNotEmpty ? realTimeResults.where(
+          (item) => item['device_type'] == 'meter'
+        ).first : null;
+        
+        _realTimeData = {
+          'inverter_power': inverterData?['active_power'] ?? 0.0,
+          'temperature': inverterData?['temperature'] ?? 0.0,
+          'efficiency': inverterData?['efficiency'] ?? 0.0,
+          'meter_power': meterData?['active_power'] ?? 0.0,
+        };
+      } else {
+        _realTimeData = null;
+      }
       
     } catch (e) {
       _setError('Error al obtener datos: $e');

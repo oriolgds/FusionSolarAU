@@ -14,6 +14,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _isCheckingConfig = true;
   bool _hasValidConfig = false;
+  bool _showDetails = false;
 
   @override
   void initState() {
@@ -164,6 +165,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           
           const SizedBox(height: 20),
           
+          // Details accordion
+          _buildDetailsAccordion(context, provider),
+          
+          const SizedBox(height: 20),
+          
           // Real-time data card
           if (provider.hasRealTimeData) _buildRealTimeCard(context, provider),
           
@@ -229,6 +235,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
+
         ],
       ),
     );
@@ -271,7 +278,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     Text(
-                      'Estimado',
+                      provider.hasRealTimeData ? 'Tiempo real' : 'Estimado',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                     ),
                   ],
@@ -287,6 +294,78 @@ class _DashboardScreenState extends State<DashboardScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
+
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailsAccordion(BuildContext context, DataProvider provider) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _showDetails = !_showDetails;
+              });
+            },
+            icon: Icon(
+              _showDetails ? Icons.expand_less : Icons.expand_more,
+              size: 20,
+            ),
+            label: const Text('Más información'),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.primary,
+              padding: EdgeInsets.zero,
+            ),
+          ),
+          if (_showDetails) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.2)),
+              ),
+              child: Column(
+                children: [
+                  Text('Temperatura: ${provider.temperature.toStringAsFixed(1)}°C', 
+                       style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Text('Eficiencia: ${provider.efficiency.toStringAsFixed(1)}%', 
+                       style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Text('Red: ${provider.gridPower.toStringAsFixed(2)} kW', 
+                       style: TextStyle(
+                         fontWeight: FontWeight.w600,
+                         color: provider.gridPower > 0 ? Colors.red : Colors.green,
+                       )),
+                  const SizedBox(height: 8),
+                  Text('Excedente: ${provider.currentExcess.toStringAsFixed(2)} kW', 
+                       style: TextStyle(
+                         fontWeight: FontWeight.w600,
+                         color: provider.currentExcess > 0 ? Colors.green : Colors.red,
+                       )),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
