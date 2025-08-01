@@ -14,6 +14,10 @@ export async function syncPlants(
   )
 
   if (!plantsResponse?.success || !plantsResponse.data) {
+    // Check for token expiration
+    if (plantsResponse?.failCode === 305 || plantsResponse?.message === 'USER_MUST_RELOGIN') {
+      throw new Error('USER_MUST_RELOGIN')
+    }
     throw new Error('Failed to get plants from FusionSolar')
   }
 

@@ -22,7 +22,7 @@ serve(async (req) => {
     // Get all users with FusionSolar credentials
     const { data: users, error: usersError } = await supabaseClient
       .from('users')
-      .select('id, fusion_solar_api_username, fusion_solar_api_password')
+      .select('id, fusion_solar_api_username, fusion_solar_api_password, fusion_solar_xsrf_token')
       .not('fusion_solar_api_username', 'is', null)
       .not('fusion_solar_api_password', 'is', null)
 
