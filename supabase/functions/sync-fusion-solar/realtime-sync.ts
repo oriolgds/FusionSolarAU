@@ -20,17 +20,18 @@ export async function syncRealTimeData(
       return
     }
 
-    // Find inverter (type 38) and meter (type 47)
-    const inverter = devices.find((d: any) => d.dev_type_id === 38)
-    const meter = devices.find((d: any) => d.dev_type_id === 47)
+    // Find inverter and meter by device_type
+    const inverter = devices.find((d: any) => d.device_type === 'inverter')
+    const meter = devices.find((d: any) => d.device_type === 'meter')
 
     let realTimeData: any = {
       user_id: userId,
       station_code: stationCode,
+      dev_dn: '',
+      device_type: 'inverter',
       active_power: 0,
       temperature: 0,
       efficiency: 0,
-      grid_power: 0,
       fetched_at: new Date().toISOString()
     }
 
@@ -65,14 +66,26 @@ export async function syncRealTimeData(
 
       if (meterDataResponse?.success && meterDataResponse.data?.[0]) {
         const meterData = meterDataResponse.data[0].dataItemMap || {}
-        realTimeData.grid_power = parseFloat(meterData.active_power || '0') / 1000 // W to kW
+        // Save meter data separately
+        const meterRealTimeData = {
+          user_id: userId,
+          station_code: stationCode,
+          dev_dn: meter.dev_dn,
+          device_type: 'meter',
+          active_power: parseFloat(meterData.active_power || '0') / 1000, // W to kW
+          fetched_at: new Date().toISOString()
+        }
+        
+        await supabaseClient
+          .from('real_time_data')
+          .upsert(meterRealTimeData, { onConflict: 'user_id,station_code,device_type' })
       }
     }
 
-    // Save real-time data to database
+    // Save inverter real-time data to database
     const { error } = await supabaseClient
       .from('real_time_data')
-      .upsert(realTimeData, { onConflict: 'user_id,station_code' })
+      .upsert(realTimeData, { onConflict: 'user_id,station_code,device_type' })
 
     if (error) {
       console.error('Error saving real-time data:', error)
