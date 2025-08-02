@@ -21,7 +21,49 @@ export async function syncRealTimeData(
     const inverter = devices.find((d: any) => d.device_type === 'inverter')
     const meter = devices.find((d: any) => d.device_type === 'meter')
 
-    // Sync inverter data
+    // Try to get both devices in one call if both exist
+    if (inverter?.dev_dn && meter?.dev_dn) {
+      const combinedResponse = await fusionSolarAPI.apiCall(
+        '/thirdData/getDevRealKpi',
+        token,
+        { devIds: `${inverter.dev_dn},${meter.dev_dn}` }
+      )
+
+      if (combinedResponse?.success && combinedResponse.data) {
+        for (const deviceData of combinedResponse.data) {
+          const dataMap = deviceData.dataItemMap || {}
+          
+          if (deviceData.devDn === inverter.dev_dn) {
+            await supabaseClient
+              .from('inverter_data')
+              .upsert({
+                user_id: userId,
+                station_code: stationCode,
+                dev_dn: inverter.dev_dn,
+                active_power: parseFloat(dataMap.active_power || '0'),
+                temperature: parseFloat(dataMap.temperature || '0'),
+                efficiency: parseFloat(dataMap.efficiency || '0')
+              }, { onConflict: 'user_id' })
+          } else if (deviceData.devDn === meter.dev_dn) {
+            await supabaseClient
+              .from('meter_data')
+              .upsert({
+                user_id: userId,
+                station_code: stationCode,
+                dev_dn: meter.dev_dn,
+                active_power: parseFloat(dataMap.active_power || '0') / 1000,
+                voltage: parseFloat(dataMap.voltage || '0'),
+                current: parseFloat(dataMap.current || '0'),
+                frequency: parseFloat(dataMap.frequency || '0'),
+                status: parseInt(dataMap.status || '1')
+              }, { onConflict: 'user_id' })
+          }
+        }
+        return
+      }
+    }
+
+    // Fallback: sync inverter only if combined call fails
     if (inverter?.dev_dn) {
       const inverterResponse = await fusionSolarAPI.apiCall(
         '/thirdData/getDevRealKpi',
@@ -41,32 +83,6 @@ export async function syncRealTimeData(
             active_power: parseFloat(invData.active_power || '0'),
             temperature: parseFloat(invData.temperature || '0'),
             efficiency: parseFloat(invData.efficiency || '0')
-          }, { onConflict: 'user_id' })
-      }
-    }
-
-    // Sync meter data
-    if (meter?.dev_dn) {
-      const meterResponse = await fusionSolarAPI.apiCall(
-        '/thirdData/getDevRealKpi',
-        token,
-        { devTypeId: 47, devIds: meter.dev_dn }
-      )
-
-      if (meterResponse?.success && meterResponse.data?.[0]) {
-        const meterData = meterResponse.data[0].dataItemMap || {}
-        
-        await supabaseClient
-          .from('meter_data')
-          .upsert({
-            user_id: userId,
-            station_code: stationCode,
-            dev_dn: meter.dev_dn,
-            active_power: parseFloat(meterData.active_power || '0') / 1000,
-            voltage: parseFloat(meterData.voltage || '0'),
-            current: parseFloat(meterData.current || '0'),
-            frequency: parseFloat(meterData.frequency || '0'),
-            status: parseInt(meterData.status || '1')
           }, { onConflict: 'user_id' })
       }
     }
