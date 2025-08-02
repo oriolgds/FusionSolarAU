@@ -359,10 +359,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Expanded(
                 child: _buildDataItem(
-                  'Excedente',
-                  '${(provider.currentExcess).toStringAsFixed(1)} kW',
-                  Icons.upload,
-                  provider.currentExcess > 0 ? Colors.green : Colors.grey,
+                  provider.gridPower > 0 ? 'Excedente' : 'Importando',
+                  '${provider.gridPower.abs().toStringAsFixed(1)} kW',
+                  provider.gridPower > 0 ? Icons.upload : Icons.download,
+                  provider.gridPower > 0 ? Colors.green : Colors.red,
                 ),
               ),
               const SizedBox(width: 16),
@@ -410,7 +410,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: color),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 4),
