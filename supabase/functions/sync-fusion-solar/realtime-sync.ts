@@ -8,7 +8,6 @@ export async function syncRealTimeData(
   supabaseClient: any
 ): Promise<void> {
   try {
-    // Get devices from cache (devices should be synced separately)
     const { data: devices } = await supabaseClient
       .from('devices')
       .select('*')
@@ -16,85 +15,66 @@ export async function syncRealTimeData(
       .eq('station_code', stationCode)
 
     if (!devices || devices.length === 0) {
-      console.warn(`No cached devices found for station ${stationCode}`)
+      console.warn(`No devices found for station ${stationCode}`)
       return
     }
 
-    // Find inverter and meter by device_type
     const inverter = devices.find((d: any) => d.device_type === 'inverter')
     const meter = devices.find((d: any) => d.device_type === 'meter')
 
-    let realTimeData: any = {
-      user_id: userId,
-      station_code: stationCode,
-      dev_dn: '',
-      device_type: 'inverter',
-      active_power: 0,
-      temperature: 0,
-      efficiency: 0,
-      fetched_at: new Date().toISOString()
-    }
-
-    // Get real-time data from inverter
+    // Sync inverter data
     if (inverter?.dev_dn) {
-      const inverterDataResponse = await fusionSolarAPI.apiCall(
+      const inverterResponse = await fusionSolarAPI.apiCall(
         '/thirdData/getDevRealKpi',
         token,
         { devTypeId: 38, devIds: inverter.dev_dn }
       )
 
-      if (inverterDataResponse?.success && inverterDataResponse.data?.[0]) {
-        const invData = inverterDataResponse.data[0].dataItemMap || {}
+      if (inverterResponse?.success && inverterResponse.data?.[0]) {
+        const invData = inverterResponse.data[0].dataItemMap || {}
         
-        realTimeData = {
-          ...realTimeData,
-          dev_dn: inverter.dev_dn,
-          active_power: parseFloat(invData.active_power || '0'),
-          temperature: parseFloat(invData.temperature || '0'),
-          efficiency: parseFloat(invData.efficiency || '0')
-        }
+        await supabaseClient
+          .from('inverter_data')
+          .upsert({
+            user_id: userId,
+            station_code: stationCode,
+            dev_dn: inverter.dev_dn,
+            active_power: parseFloat(invData.active_power || '0'),
+            temperature: parseFloat(invData.temperature || '0'),
+            efficiency: parseFloat(invData.efficiency || '0')
+          }, { onConflict: 'user_id' })
       }
     }
 
-    // Get real-time data from meter
+    // Sync meter data
     if (meter?.dev_dn) {
-      const meterDataResponse = await fusionSolarAPI.apiCall(
+      const meterResponse = await fusionSolarAPI.apiCall(
         '/thirdData/getDevRealKpi',
         token,
         { devTypeId: 47, devIds: meter.dev_dn }
       )
 
-      if (meterDataResponse?.success && meterDataResponse.data?.[0]) {
-        const meterData = meterDataResponse.data[0].dataItemMap || {}
-        // Save meter data separately
-        const meterRealTimeData = {
-          user_id: userId,
-          station_code: stationCode,
-          dev_dn: meter.dev_dn,
-          device_type: 'meter',
-          active_power: parseFloat(meterData.active_power || '0') / 1000, // W to kW
-          fetched_at: new Date().toISOString()
-        }
+      if (meterResponse?.success && meterResponse.data?.[0]) {
+        const meterData = meterResponse.data[0].dataItemMap || {}
         
         await supabaseClient
-          .from('real_time_data')
-          .upsert(meterRealTimeData, { onConflict: 'user_id,station_code,device_type' })
+          .from('meter_data')
+          .upsert({
+            user_id: userId,
+            station_code: stationCode,
+            dev_dn: meter.dev_dn,
+            active_power: parseFloat(meterData.active_power || '0') / 1000,
+            voltage: parseFloat(meterData.voltage || '0'),
+            current: parseFloat(meterData.current || '0'),
+            frequency: parseFloat(meterData.frequency || '0'),
+            status: parseInt(meterData.status || '1')
+          }, { onConflict: 'user_id' })
       }
     }
 
-    // Save inverter real-time data to database
-    const { error } = await supabaseClient
-      .from('real_time_data')
-      .upsert(realTimeData, { onConflict: 'user_id,station_code,device_type' })
-
-    if (error) {
-      console.error('Error saving real-time data:', error)
-      throw error
-    }
-
-    console.log(`Real-time data synced for station ${stationCode}`)
+    console.log(`Real-time data synced for user ${userId}`)
   } catch (error) {
-    console.error(`Error syncing real-time data for station ${stationCode}:`, error)
+    console.error(`Error syncing real-time data:`, error)
     throw error
   }
 }

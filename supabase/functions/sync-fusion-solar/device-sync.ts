@@ -38,8 +38,7 @@ export async function syncDevices(
       user_id: userId,
       station_code: stationCode,
       dev_dn: device.devDn,
-      device_type: device.devTypeId === 38 ? 'inverter' : 'meter',
-      updated_at: new Date().toISOString()
+      device_type: device.devTypeId === 38 ? 'inverter' : 'meter'
     }))
 
     // Delete existing devices for this station

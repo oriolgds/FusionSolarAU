@@ -44,17 +44,16 @@ export async function syncPlants(
         .from('plants')
         .upsert({
           user_id: userId,
-          stationCode: plant.stationCode,
-          stationName: plant.stationName,
-          stationAddr: plant.stationAddr,
+          station_code: plant.stationCode,
+          station_name: plant.stationName,
+          station_addr: plant.stationAddr,
           capacity: plant.capacity,
-          aidType: plant.aidType,
-          buildState: plant.buildState,
-          combineType: plant.combineType,
-          linkmanPho: plant.linkmanPho,
-          stationLinkman: plant.stationLinkman,
-          fetched_at: new Date().toISOString()
-        }, { onConflict: 'user_id,stationCode' })
+          aid_type: plant.aidType,
+          build_state: plant.buildState,
+          combine_type: plant.combineType,
+          linkman_pho: plant.linkmanPho,
+          station_linkman: plant.stationLinkman
+        }, { onConflict: 'user_id,station_code' })
 
       if (error) {
         console.error('Error saving plant:', error)
