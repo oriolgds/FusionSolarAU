@@ -38,52 +38,74 @@ export async function syncUserData(
   fusionSolarAPI: FusionSolarAPI, 
   supabaseClient: any
 ) {
-  // Try to use cached token first
-  let token = user.fusion_solar_xsrf_token
-  
-  // If no cached token or token is invalid, login
-  if (!token) {
-    token = await loginAndCacheToken(user, fusionSolarAPI, supabaseClient)
-  }
-  
-  if (!token) {
-    throw new Error(`Failed to login for user ${user.id}`)
+  const result = {
+    userId: user.id,
+    status: 'success' as 'success' | 'error',
+    plantsProcessed: 0,
+    plantsFromCache: false,
+    devicesFromCache: false,
+    dailyDataLimited: false,
+    error: null as string | null
   }
 
-  // Get and sync plants with token retry logic
-  let plants
   try {
-    plants = await syncPlants(user.id, token, fusionSolarAPI, supabaseClient)
-  } catch (error: any) {
-    // Check if token expired
-    if (error.message.includes('USER_MUST_RELOGIN') || error.message.includes('Failed to get plants')) {
-      token = await handleTokenExpired(user, fusionSolarAPI, supabaseClient)
-      if (!token) {
-        throw new Error(`Failed to re-login for user ${user.id}`)
-      }
-      plants = await syncPlants(user.id, token, fusionSolarAPI, supabaseClient)
-    } else {
-      throw error
-    }
-  }
-  
-  if (!plants || plants.length === 0) {
-    throw new Error(`No plants found for user ${user.id}`)
-  }
-
-  // Sync data for each plant
-  for (const plant of plants) {
-    // Sync devices first (needed for real-time data)
-    await syncDevices(user.id, plant.stationCode, token, fusionSolarAPI, supabaseClient)
+    // Try to use cached token first
+    let token = user.fusion_solar_xsrf_token
     
-    // Sync daily and real-time data
-    await syncDailyData(user.id, plant.stationCode, token, fusionSolarAPI, supabaseClient)
-    await syncRealTimeData(user.id, plant.stationCode, token, fusionSolarAPI, supabaseClient)
-  }
+    // If no cached token or token is invalid, login
+    if (!token) {
+      token = await loginAndCacheToken(user, fusionSolarAPI, supabaseClient)
+    }
+    
+    if (!token) {
+      throw new Error(`Failed to login for user ${user.id}`)
+    }
 
-  return { 
-    userId: user.id, 
-    status: 'success', 
-    plantsProcessed: plants.length 
+    // Get and sync plants with token retry logic
+    let plantsResult
+    try {
+      plantsResult = await syncPlants(user.id, token, fusionSolarAPI, supabaseClient)
+    } catch (error: any) {
+      // Check if token expired
+      if (error.message.includes('USER_MUST_RELOGIN') || error.message.includes('Failed to get plants')) {
+        token = await handleTokenExpired(user, fusionSolarAPI, supabaseClient)
+        if (!token) {
+          throw new Error(`Failed to re-login for user ${user.id}`)
+        }
+        plantsResult = await syncPlants(user.id, token, fusionSolarAPI, supabaseClient)
+      } else {
+        throw error
+      }
+    }
+    
+    if (!plantsResult.plants || plantsResult.plants.length === 0) {
+      throw new Error(`No plants found for user ${user.id}`)
+    }
+
+    result.plantsProcessed = plantsResult.plants.length
+    result.plantsFromCache = plantsResult.fromCache
+
+    // Sync data for each plant
+    let anyDevicesFromCache = false
+    let anyDailyDataLimited = false
+    for (const plant of plantsResult.plants) {
+      // Sync devices first (needed for real-time data)
+      const devicesResult = await syncDevices(user.id, plant.station_code, token, fusionSolarAPI, supabaseClient)
+      if (devicesResult.fromCache) anyDevicesFromCache = true
+      
+      // Sync daily and real-time data
+      const dailyDataSynced = await syncDailyData(user.id, plant.station_code, token, fusionSolarAPI, supabaseClient)
+      if (!dailyDataSynced) anyDailyDataLimited = true
+      
+      await syncRealTimeData(user.id, plant.station_code, token, fusionSolarAPI, supabaseClient)
+    }
+
+    result.devicesFromCache = anyDevicesFromCache
+    result.dailyDataLimited = anyDailyDataLimited
+    return result
+  } catch (error: any) {
+    result.status = 'error'
+    result.error = error.message
+    return result
   }
 }

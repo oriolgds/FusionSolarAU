@@ -339,7 +339,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildRealTimeCard(BuildContext context, DataProvider provider) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -360,9 +360,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Expanded(
                 child: _buildDataItem(
                   'Excedente',
-                  '${(provider.currentExcess * -1).toStringAsFixed(1)} kW',
+                  '${(provider.currentExcess).toStringAsFixed(1)} kW',
                   Icons.upload,
-                  provider.currentExcess * -1 > 0 ? Colors.green : Colors.grey,
+                  provider.currentExcess > 0 ? Colors.green : Colors.grey,
                 ),
               ),
               const SizedBox(width: 16),

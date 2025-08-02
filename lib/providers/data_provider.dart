@@ -37,10 +37,10 @@ class DataProvider extends ChangeNotifier {
   double get meterPower => _meterData?['active_power']?.toDouble() ?? 0.0;
   
   // Computed values
-  double get currentPower => activePower;
-  double get currentConsumption => activePower - meterPower;
-  double get gridPower => meterPower;
-  double get currentExcess => -meterPower;
+  double get currentPower => activePower; // Solar production from inverter
+  double get currentConsumption => (activePower - meterPower).abs(); // Always positive
+  double get gridPower => meterPower; // Positive = exporting, negative = importing
+  double get currentExcess => meterPower > 0 ? meterPower : 0.0; // Only when exporting
   bool get isProducing => currentPower > 0.1;
   
   DataProvider() {

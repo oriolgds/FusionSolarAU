@@ -6,7 +6,7 @@ export async function syncDevices(
   token: string,
   fusionSolarAPI: FusionSolarAPI,
   supabaseClient: any
-): Promise<any[]> {
+): Promise<{ devices: any[], fromCache: boolean }> {
   try {
     // Get devices from API
     const devicesResponse = await fusionSolarAPI.apiCall(
@@ -16,21 +16,14 @@ export async function syncDevices(
     )
 
     if (!devicesResponse?.success || !devicesResponse.data) {
-      // Check for rate limiting
-      if (devicesResponse?.failCode === 407 || devicesResponse?.data === 'ACCESS_FREQUENCY_IS_TOO_HIGH') {
-        console.warn(`Rate limited for station ${stationCode}, using cached devices`)
-      } else {
-        console.warn(`No devices found for station ${stationCode}, checking cache`)
-      }
-      
-      // Fallback to cached data
+      // Fallback to cached data for rate limiting or API issues
       const { data: cachedDevices } = await supabaseClient
         .from('devices')
-        .select('*')
+        .select('dev_dn, device_type')
         .eq('user_id', userId)
         .eq('station_code', stationCode)
       
-      return cachedDevices || []
+      return { devices: cachedDevices || [], fromCache: true }
     }
 
     // Process and save devices
@@ -60,17 +53,17 @@ export async function syncDevices(
       }
     }
 
-    return devices
+    return { devices, fromCache: false }
   } catch (error) {
     console.error(`Error syncing devices for station ${stationCode}:`, error)
     
     // Fallback to cached data
     const { data: cachedDevices } = await supabaseClient
       .from('devices')
-      .select('*')
+      .select('dev_dn, device_type')
       .eq('user_id', userId)
       .eq('station_code', stationCode)
     
-    return cachedDevices || []
+    return { devices: cachedDevices || [], fromCache: true }
   }
 }

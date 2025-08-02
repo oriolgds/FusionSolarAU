@@ -6,7 +6,7 @@ export async function syncDailyData(
   token: string,
   fusionSolarAPI: FusionSolarAPI,
   supabaseClient: any
-): Promise<void> {
+): Promise<boolean> {
   const dailyDataResponse = await fusionSolarAPI.apiCall(
     '/thirdData/getStationRealKpi',
     token,
@@ -14,8 +14,7 @@ export async function syncDailyData(
   )
 
   if (!dailyDataResponse?.success || !dailyDataResponse.data?.[0]) {
-    console.warn(`No daily data for station ${stationCode}`)
-    return
+    return false
   }
 
   const stationData = dailyDataResponse.data[0]
@@ -41,5 +40,5 @@ export async function syncDailyData(
     throw error
   }
 
-  console.log(`Daily data synced for user ${userId}`)
+  return true
 }

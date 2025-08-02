@@ -34,23 +34,26 @@ serve(async (req) => {
     const results = []
 
     for (const user of users || []) {
-      try {
-        const result = await syncUserData(user, fusionSolarAPI, supabaseClient)
-        results.push(result)
-      } catch (error) {
-        console.error(`Error processing user ${user.id}:`, error)
-        results.push({ 
-          userId: user.id, 
-          status: 'error', 
-          error: error.message 
-        })
-      }
+      const result = await syncUserData(user, fusionSolarAPI, supabaseClient)
+      results.push(result)
     }
+
+    // Summary logging
+    const summary = {
+      total: results.length,
+      successful: results.filter(r => r.status === 'success').length,
+      errors: results.filter(r => r.status === 'error').length,
+      plantsFromCache: results.filter(r => r.plantsFromCache).length,
+      devicesFromCache: results.filter(r => r.devicesFromCache).length,
+      dailyDataLimited: results.filter(r => r.dailyDataLimited).length
+    }
+
+    console.log('Sync completed:', JSON.stringify(summary))
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        processed: results.length,
+        summary,
         results 
       }),
       {

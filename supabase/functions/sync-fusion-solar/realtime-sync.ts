@@ -10,12 +10,11 @@ export async function syncRealTimeData(
   try {
     const { data: devices } = await supabaseClient
       .from('devices')
-      .select('*')
+      .select('dev_dn, device_type')
       .eq('user_id', userId)
       .eq('station_code', stationCode)
 
     if (!devices || devices.length === 0) {
-      console.warn(`No devices found for station ${stationCode}`)
       return
     }
 
@@ -71,8 +70,6 @@ export async function syncRealTimeData(
           }, { onConflict: 'user_id' })
       }
     }
-
-    console.log(`Real-time data synced for user ${userId}`)
   } catch (error) {
     console.error(`Error syncing real-time data:`, error)
     throw error
